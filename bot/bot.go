@@ -63,26 +63,26 @@ func (wb *WatchtowerBot) handleMessage(message *tgbotapi.Message) {
 		wb.handleListServers(message)
 	case "server":
 		wb.handleSwitchServer(message)
-	case "wt-status":
+	case "wt_status":
 		wb.handleStatus(message)
-	case "wt-dashboard":
+	case "wt_dashboard":
 		wb.handleDashboard(message)
-	case "wt-summary":
+	case "wt_summary":
 		wb.handleSummary(message)
-	case "wt-update":
+	case "wt_update":
 		wb.handleUpdate(message)
 	default:
 		wb.sendMessage(message.Chat.ID, 
-			"🤖 *WatchtowerMasterBot*\n\n" +
-			"*Server Management:*\n" +
-			"`/addserver` - Add new server\n" +
-			"`/servers` - List your servers\n" +
-			"`/server` - Switch active server\n\n" +
-			"*Watchtower Commands:*\n" +
-			"`/wt-status` - Container status\n" +
-			"`/wt-dashboard` - Overview\n" +
-			"`/wt-summary` - Update history\n" +
-			"`/wt-update` - Manual updates")
+				"🤖 *WatchtowerMasterBot*\n\n" +
+				"*Server Management:*\n" +
+				"`/addserver` - Add new server\n" +
+				"`/servers` - List your servers\n" +
+				"`/server` - Switch active server\n\n" +
+				"*Watchtower Commands:*\n" +
+				"`/wt_status` - Container status\n" +
+				"`/wt_dashboard` - Overview\n" +
+				"`/wt_summary` - Update history\n" +
+				"`/wt_update` - Manual updates")
 	}
 }
 
@@ -93,12 +93,12 @@ func (wb *WatchtowerBot) handleStart(message *tgbotapi.Message) {
 /addserver - Add a new Watchtower server
 /servers - List your servers  
 /server - Switch active server
-/wt-status - Check container status
+/wt_status - Check container status
 
 *Get Started:*
 1. Use /addserver to add your first Watchtower instance
 2. Switch between servers with /server <name>
-3. Use /wt-status to check container status`
+3. Use /wt_status to check container status`
 
 	wb.sendMessage(message.Chat.ID, msg)
 }
@@ -106,7 +106,7 @@ func (wb *WatchtowerBot) handleStart(message *tgbotapi.Message) {
 func (wb *WatchtowerBot) sendMessage(chatID int64, text string) {
 	msg := tgbotapi.NewMessage(chatID, text)
 	msg.ParseMode = "Markdown"
-	
+
 	if _, sendErr := wb.bot.Send(msg); sendErr != nil {
 		log.Printf("Error sending message: %v", sendErr)
 	}

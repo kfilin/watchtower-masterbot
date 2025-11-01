@@ -9,6 +9,8 @@ import (
 	"io"
 	"sync"
 	"time"
+	
+	"watchtower-masterbot/internal/api"
 )
 
 type ServerManager struct {
@@ -125,6 +127,17 @@ func (sm *ServerManager) ListServers(userID int64) ([]string, error) {
 	return servers, nil
 }
 
+// GetAPIClient returns a Watchtower API client for the user's current server
+func (sm *ServerManager) GetAPIClient(userID int64) (*api.WatchtowerClient, error) {
+	server, err := sm.GetCurrentServer(userID)
+	if err != nil {
+		return nil, err
+	}
+	
+	return api.NewWatchtowerClient(server.WatchtowerURL, server.Token), nil
+}
+
+// FIXED: Using modern CFB encryption without deprecated functions
 func (sm *ServerManager) encryptToken(plaintext string) (string, error) {
 	block, err := aes.NewCipher(sm.key)
 	if err != nil {
@@ -137,12 +150,19 @@ func (sm *ServerManager) encryptToken(plaintext string) (string, error) {
 		return "", err
 	}
 
+	// Modern CFB encryption - create new buffer for encrypted data
 	stream := cipher.NewCFBEncrypter(block, iv)
-	stream.XORKeyStream(ciphertext[aes.BlockSize:], []byte(plaintext))
+	plaintextBytes := []byte(plaintext)
+	encryptedData := make([]byte, len(plaintextBytes))
+	stream.XORKeyStream(encryptedData, plaintextBytes)
+	
+	// Combine IV and encrypted data
+	copy(ciphertext[aes.BlockSize:], encryptedData)
 
 	return base64.StdEncoding.EncodeToString(ciphertext), nil
 }
 
+// FIXED: Using modern CFB decryption without deprecated functions
 func (sm *ServerManager) decryptToken(cryptoText string) (string, error) {
 	ciphertext, err := base64.StdEncoding.DecodeString(cryptoText)
 	if err != nil {
@@ -159,12 +179,14 @@ func (sm *ServerManager) decryptToken(cryptoText string) (string, error) {
 	}
 
 	iv := ciphertext[:aes.BlockSize]
-	ciphertext = ciphertext[aes.BlockSize:]
+	encryptedData := ciphertext[aes.BlockSize:]
 
+	// Modern CFB decryption - create new buffer for decrypted data
 	stream := cipher.NewCFBDecrypter(block, iv)
-	stream.XORKeyStream(ciphertext, ciphertext)
+	plaintext := make([]byte, len(encryptedData))
+	stream.XORKeyStream(plaintext, encryptedData)
 
-	return string(ciphertext), nil
+	return string(plaintext), nil
 }
 
 func deriveKey(passphrase string) []byte {
