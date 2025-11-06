@@ -1,10 +1,14 @@
 package api
 
 import (
+	"bufio"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -18,7 +22,7 @@ type ContainerStatus struct {
 	ID          string    `json:"id"`
 	Name        string    `json:"name"`
 	Image       string    `json:"image"`
-	Status      string    `json:"status"` // "up_to_date", "update_available", "updated", "failed"
+	Status      string    `json:"status"`
 	LastChecked time.Time `json:"last_checked"`
 }
 
@@ -34,8 +38,23 @@ type UpdateResponse struct {
 	Failed  []string `json:"failed"`
 }
 
+type UpdateJob struct {
+	ID      string    `json:"id"`
+	State   string    `json:"state"`
+	Started time.Time `json:"started"`
+	Ended   time.Time `json:"ended"`
+	Results []struct {
+		Container string `json:"container"`
+		Status    string `json:"status"`
+		Error     string `json:"error,omitempty"`
+	} `json:"results"`
+}
+
+type MetricsResponse struct {
+	Data map[string]string
+}
+
 func NewWatchtowerClient(baseURL, token string) *WatchtowerClient {
-	// Create a custom transport that matches curl's behavior
 	transport := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
@@ -47,7 +66,6 @@ func NewWatchtowerClient(baseURL, token string) *WatchtowerClient {
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
-		// Important: Disable HTTP/2 PING frames and other keep-alive that might cause timeouts
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: false,
 		},
@@ -57,7 +75,7 @@ func NewWatchtowerClient(baseURL, token string) *WatchtowerClient {
 		BaseURL: baseURL,
 		Token:   token,
 		HTTPClient: &http.Client{
-			Timeout:   60 * time.Second, // Reasonable timeout
+			Timeout:   60 * time.Second,
 			Transport: transport,
 		},
 	}
@@ -79,8 +97,6 @@ func (c *WatchtowerClient) doRequest(method, endpoint string) (*http.Response, e
 }
 
 func (c *WatchtowerClient) GetContainers() ([]ContainerStatus, error) {
-	// Watchtower doesn't have a containers status endpoint
-	// We'll return an empty list for now and implement this later
 	return []ContainerStatus{}, nil
 }
 
@@ -91,18 +107,14 @@ func (c *WatchtowerClient) TriggerUpdate() (*UpdateResponse, error) {
 	}
 	defer resp.Body.Close()
 
-	// Handle different success scenarios
 	switch resp.StatusCode {
 	case http.StatusOK:
-		// Watchtower returns 200 with empty body - this is success
-		// The update happens asynchronously after the response
 		return &UpdateResponse{
 			Updated: []string{"Update triggered successfully - check Watchtower logs for details"},
 			Failed:  []string{},
 		}, nil
 
 	case http.StatusAccepted:
-		// Alternative success response
 		return &UpdateResponse{
 			Updated: []string{"Update accepted and processing"},
 			Failed:  []string{},
@@ -126,15 +138,12 @@ func (c *WatchtowerClient) TriggerUpdate() (*UpdateResponse, error) {
 }
 
 func (c *WatchtowerClient) GetStatus() (*WatchtowerStatus, error) {
-	// Watchtower doesn't have a status endpoint, return basic info
 	return &WatchtowerStatus{
 		Version: "1.7.1",
 		Status:  "running",
-		// We can't get container count without a proper endpoint
 	}, nil
 }
 
-// TestConnection verifies that we can reach the Watchtower API
 func (c *WatchtowerClient) TestConnection() error {
 	resp, err := c.doRequest("GET", "/v1/update")
 	if err != nil {
@@ -142,11 +151,95 @@ func (c *WatchtowerClient) TestConnection() error {
 	}
 	defer resp.Body.Close()
 
-	// For connection test, we accept 405 Method Not Allowed (since GET /v1/update isn't allowed)
-	// or any 2xx/3xx/4xx except 5xx server errors
 	if resp.StatusCode >= 500 {
 		return fmt.Errorf("server error during connection test: %d", resp.StatusCode)
 	}
 
 	return nil
+}
+
+// GetUpdateJobs gets recent update jobs
+func (c *WatchtowerClient) GetUpdateJobs(limit int) ([]UpdateJob, error) {
+	resp, err := c.doRequest("GET", fmt.Sprintf("/v1/update?limit=%d", limit))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get update jobs: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API returned status: %d", resp.StatusCode)
+	}
+
+	// Read the response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %v", err)
+	}
+
+	var response struct {
+		Result []UpdateJob `json:"result"`
+	}
+
+	if err := json.Unmarshal(body, &response); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %v", err)
+	}
+
+	return response.Result, nil
+}
+
+// GetUpdateJob gets specific update job details
+func (c *WatchtowerClient) GetUpdateJob(jobID string) (*UpdateJob, error) {
+	resp, err := c.doRequest("GET", fmt.Sprintf("/v1/update/%s", jobID))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get update job: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API returned status: %d", resp.StatusCode)
+	}
+
+	// Read the response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %v", err)
+	}
+
+	var job UpdateJob
+	if err := json.Unmarshal(body, &job); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %v", err)
+	}
+
+	return &job, nil
+}
+
+// GetMetrics gets Prometheus metrics
+func (c *WatchtowerClient) GetMetrics() (*MetricsResponse, error) {
+	resp, err := c.doRequest("GET", "/v1/metrics")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get metrics: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API returned status: %d", resp.StatusCode)
+	}
+
+	metricsData := make(map[string]string)
+	scanner := bufio.NewScanner(resp.Body)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.HasPrefix(line, "#") && strings.Contains(line, " ") {
+			parts := strings.Split(line, " ")
+			if len(parts) >= 2 {
+				metricsData[parts[0]] = parts[1]
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error scanning metrics response: %v", err)
+	}
+
+	return &MetricsResponse{Data: metricsData}, nil
 }
