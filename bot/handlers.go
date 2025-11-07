@@ -66,7 +66,6 @@ func (wb *WatchtowerBot) handleAddServer(message *tgbotapi.Message) {
 func (wb *WatchtowerBot) handleListServers(message *tgbotapi.Message) {
 	serverList, err := wb.serverManager.ListServers(message.From.ID)
 	if err != nil {
-		// FIXED: Remove markdown from error message to prevent parsing issues
 		wb.sendMessage(message.Chat.ID, "❌ No servers configured. Use /add_server to add your first server.")
 		return
 	}
@@ -85,7 +84,8 @@ func (wb *WatchtowerBot) handleListServers(message *tgbotapi.Message) {
 		if server == currentServerName {
 			indicator = "📍"
 		}
-		response.WriteString(fmt.Sprintf("%s %s\n", indicator, server))
+		// Fixed alignment - consistent spacing with monospace
+		response.WriteString(fmt.Sprintf("%s `%s`\n", indicator, server))
 
 		if i >= 9 {
 			response.WriteString("\n... and more")
@@ -95,7 +95,7 @@ func (wb *WatchtowerBot) handleListServers(message *tgbotapi.Message) {
 
 	response.WriteString("\n\n*Quick Actions:*\n")
 	response.WriteString("• Use `/server <name>` to switch active server\n")
-	response.WriteString("• Use `/wt_update` to check current server status\n")
+	response.WriteString("• Use `/wt_update` to trigger container updates\n")
 	response.WriteString("• Use `/add_server` to add more servers")
 
 	wb.sendMessage(message.Chat.ID, response.String())
@@ -186,97 +186,31 @@ func (wb *WatchtowerBot) handleUpdate(message *tgbotapi.Message) {
 		return
 	}
 
-	// Build response based on the result
+	// Build response EXACTLY as requested
 	var response strings.Builder
+	response.WriteString("✅ *Update Completed Successfully!*\n\n")
+	response.WriteString("📋 *Result:* Update triggered successfully\n\n")
 
-	if updateResponse.Message != "" && strings.Contains(updateResponse.Message, "processing") {
-		// This is a timeout/slow operation case
-		response.WriteString("✅ *Update Triggered Successfully!*\n\n")
-		response.WriteString(fmt.Sprintf("🌐 Server: `%s`\n\n", currentServer.Nickname))
-		response.WriteString("📋 *Status:* Update is processing in background\n")
-		response.WriteString("⏱️ This typically takes 2-5 minutes\n\n")
-		response.WriteString("💡 Check your Watchtower logs for detailed progress")
+	// Show container counts and names exactly as requested
+	updatedCount := len(updateResponse.Updated)
+	failedCount := len(updateResponse.Failed)
+
+	response.WriteString(fmt.Sprintf("🔄 *Containers updated:* `%d`\n", updatedCount))
+
+	if updatedCount > 0 {
+		containerNames := strings.Join(updateResponse.Updated, ", ")
+		response.WriteString(fmt.Sprintf("📦 *Container(s) name:* `%s`\n", containerNames))
 	} else {
-		// Normal success case
-		response.WriteString("✅ *Update Completed Successfully!*\n\n")
-
-		if len(updateResponse.Updated) > 0 {
-			response.WriteString("🔄 *Updated Containers:*\n")
-			for _, container := range updateResponse.Updated {
-				response.WriteString(fmt.Sprintf("• %s\n", container))
-			}
-			response.WriteString("\n")
-		}
-
-		if len(updateResponse.Failed) > 0 {
-			response.WriteString("❌ *Failed Containers:*\n")
-			for _, container := range updateResponse.Failed {
-				response.WriteString(fmt.Sprintf("• %s\n", container))
-			}
-			response.WriteString("\n")
-		}
-
-		if len(updateResponse.Updated) == 0 && len(updateResponse.Failed) == 0 {
-			if updateResponse.Message != "" {
-				response.WriteString(fmt.Sprintf("📋 *Result:* %s\n", updateResponse.Message))
-			} else {
-				response.WriteString("📋 *Result:* All containers are already up to date! ✅\n")
-			}
-		}
-
-		response.WriteString("\n🔍 *Use `/servers` to manage your servers*")
+		response.WriteString("📦 *Container(s) name:* `none`\n")
 	}
+
+	if failedCount > 0 {
+		response.WriteString(fmt.Sprintf("\n❌ *Containers failed:* `%d`\n", failedCount))
+		failedNames := strings.Join(updateResponse.Failed, ", ")
+		response.WriteString(fmt.Sprintf("💥 *Failed container(s):* `%s`\n", failedNames))
+	}
+
+	response.WriteString("\n🔍 *Use `/servers` to manage your servers*")
 
 	wb.sendMessage(message.Chat.ID, response.String())
 }
-
-// Comment out or remove deprecated handlers since we streamlined to 4 commands
-/*
-func (wb *WatchtowerBot) handleHistory(message *tgbotapi.Message) {
-	// This handler is deprecated - redirect to streamlined interface
-	wb.sendMessage(message.Chat.ID,
-		"🔄 *Command Streamlined*\n\n"+
-			"The `/wt_history` command has been replaced with the main interface.\n\n"+
-			"Use `/servers` to manage your servers and `/wt_update` to trigger updates.")
-}
-
-func (wb *WatchtowerBot) handleMetrics(message *tgbotapi.Message) {
-	// This handler is deprecated - redirect to streamlined interface
-	wb.sendMessage(message.Chat.ID,
-		"🔄 *Command Streamlined*\n\n"+
-			"The `/wt_metrics` command has been replaced with the main interface.\n\n"+
-			"Use `/servers` to manage your servers and `/wt_update` to trigger updates.")
-}
-
-func (wb *WatchtowerBot) handleJob(message *tgbotapi.Message) {
-	// This handler is deprecated - redirect to streamlined interface
-	wb.sendMessage(message.Chat.ID,
-		"🔄 *Command Streamlined*\n\n"+
-			"The `/wt_job` command has been replaced with the main interface.\n\n"+
-			"Use `/servers` to manage your servers and `/wt_update` to trigger updates.")
-}
-
-func (wb *WatchtowerBot) handleStatus(message *tgbotapi.Message) {
-	// This handler is deprecated - redirect to streamlined interface
-	wb.sendMessage(message.Chat.ID,
-		"🔄 *Command Streamlined*\n\n"+
-			"The `/wt_status` command has been replaced with `/wt_update`.\n\n"+
-			"Use `/wt_update` to trigger container updates.")
-}
-
-func (wb *WatchtowerBot) handleDashboard(message *tgbotapi.Message) {
-	// This handler is deprecated - redirect to streamlined interface
-	wb.sendMessage(message.Chat.ID,
-		"🔄 *Command Streamlined*\n\n"+
-			"The `/wt_dashboard` command has been replaced with the main menu.\n\n"+
-			"Use the menu buttons or `/servers` to manage your servers.")
-}
-
-func (wb *WatchtowerBot) handleSummary(message *tgbotapi.Message) {
-	// This handler is deprecated - redirect to streamlined interface
-	wb.sendMessage(message.Chat.ID,
-		"🔄 *Command Streamlined*\n\n"+
-			"The `/wt_summary` command has been replaced with the main interface.\n\n"+
-			"Use `/servers` to manage your servers and `/wt_update` to trigger updates.")
-}
-*/
