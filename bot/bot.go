@@ -54,72 +54,100 @@ func (wb *WatchtowerBot) handleMessage(message *tgbotapi.Message) {
 		return
 	}
 
-	// Handle commands
+	// Handle commands and button clicks
 	switch message.Command() {
-	case "start":
+	case "start", "bot":
 		wb.handleStart(message)
-	case "addserver":
+	case "add_server", "addserver": // Support both old and new during transition
 		wb.handleAddServer(message)
 	case "servers":
 		wb.handleListServers(message)
 	case "server":
 		wb.handleSwitchServer(message)
-	case "wt_status":
-		wb.handleStatus(message)
-	case "wt_history":
-		wb.handleHistory(message)
-		//	case "wt_trigger":
-		//		wb.handleTrigger(message)
-	case "wt_metrics":
-		wb.handleMetrics(message)
-	case "wt_job":
-		wb.handleJob(message)
-	case "wt_dashboard":
-		wb.handleDashboard(message)
-	case "wt_summary":
-		wb.handleSummary(message)
-	case "wt_update":
+	case "wt_update", "wtupdate": // Support both old and new
 		wb.handleUpdate(message)
 	default:
-		wb.sendMessage(message.Chat.ID,
-			"🤖 *WatchtowerMasterBot v2.0*\n\n"+
-				"*Server Management:*\n"+
-				"`/addserver` - Add new server\n"+
-				"`/servers` - List your servers\n"+
-				"`/server` - Switch active server\n\n"+
-				"*Update Commands:*\n"+
-				"`/wt_update` - Trigger container updates\n\n"+
-				"*Advanced Features (v1.7+ required):*\n"+
-				"`/wt_history` - Update timeline & results\n"+
-				"`/wt_metrics` - Performance statistics\n"+
-				"`/wt_job` - Detailed job results\n\n"+
-				"💡 *Advanced features require Watchtower v1.7+ with HTTP API*")
+		// Handle button clicks and unknown commands
+		wb.handleButtonClicks(message)
 	}
 }
 
 func (wb *WatchtowerBot) handleStart(message *tgbotapi.Message) {
-	msg := `🚀 *WatchtowerMasterBot v2.0 Started!*
+	welcomeText := `🚀 *Watchtower MasterBot*
 
-*Server Management:*
-/addserver - Add a new Watchtower server
-/servers - List your servers  
-/server - Switch active server
+*Manage multiple Watchtower instances from one place\!*
 
-"*Update Commands:*\n"+
-"/wt_update - Trigger container updates\n"+
-"/wt_trigger - Alias for updates\n\n"+
-"*Advanced (v1.7+ required):*\n"+
-"/wt_history - Update timeline & results\n"+
-"/wt_metrics - Statistics & performance\n"+
-"/wt_job - Detailed job results"
+📋 *Available Commands:*
 
+• /add\_server \- Add a new Watchtower server
+• /servers \- List your managed servers  
+• /server \- Switch active server context
+• /wt\_update \- Trigger container updates
 
-*Get Started:*
-1. Use /addserver to add your first Watchtower instance
-2. Switch between severs with /server <name>
-3. Use /wt_history to see update status and results`
+💡 *Quick Start:*
+1\. Use /add\_server to add your first server
+2\. Switch between servers with /server
+3\. Trigger updates with /wt\_update
 
-	wb.sendMessage(message.Chat.ID, msg)
+🔒 *Security:* All data encrypted with AES\-256`
+
+	msg := tgbotapi.NewMessage(message.Chat.ID, welcomeText)
+	msg.ParseMode = "MarkdownV2"
+	msg.ReplyMarkup = wb.createMainMenu()
+	wb.bot.Send(msg)
+}
+
+func (wb *WatchtowerBot) createMainMenu() tgbotapi.ReplyKeyboardMarkup {
+	// Professional 2-column menu layout using the proper constructor
+	return tgbotapi.NewReplyKeyboard(
+		tgbotapi.NewKeyboardButtonRow(
+			tgbotapi.NewKeyboardButton("🚀 Add Server"),
+			tgbotapi.NewKeyboardButton("📋 Servers List"),
+		),
+		tgbotapi.NewKeyboardButtonRow(
+			tgbotapi.NewKeyboardButton("🔄 Switch Server"),
+			tgbotapi.NewKeyboardButton("⚡ Update Containers"),
+		),
+		tgbotapi.NewKeyboardButtonRow(
+			tgbotapi.NewKeyboardButton("ℹ️ Bot Info"),
+		),
+	)
+}
+
+func (wb *WatchtowerBot) handleButtonClicks(message *tgbotapi.Message) {
+	text := message.Text
+
+	switch text {
+	case "🚀 Add Server":
+		wb.handleAddServer(message)
+	case "📋 Servers List":
+		wb.handleListServers(message)
+	case "🔄 Switch Server":
+		wb.handleSwitchServer(message)
+	case "⚡ Update Containers":
+		wb.handleUpdate(message)
+	case "ℹ️ Bot Info":
+		wb.handleStart(message)
+	default:
+		wb.handleUnknownCommand(message)
+	}
+}
+
+func (wb *WatchtowerBot) handleUnknownCommand(message *tgbotapi.Message) {
+	helpText := `❓ *Unknown Command*
+
+📋 *Available Commands:*
+• /add_server - Add new Watchtower server
+• /servers - List managed servers
+• /server - Switch active server  
+• /wt_update - Trigger container updates
+
+💡 Click menu buttons or type commands directly`
+
+	msg := tgbotapi.NewMessage(message.Chat.ID, helpText)
+	msg.ParseMode = "Markdown"
+	msg.ReplyMarkup = wb.createMainMenu()
+	wb.bot.Send(msg)
 }
 
 func (wb *WatchtowerBot) sendMessage(chatID int64, text string) {

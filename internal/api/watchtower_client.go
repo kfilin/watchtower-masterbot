@@ -36,6 +36,7 @@ type WatchtowerStatus struct {
 type UpdateResponse struct {
 	Updated []string `json:"updated"`
 	Failed  []string `json:"failed"`
+	Message string   `json:"message,omitempty"`
 }
 
 type UpdateJob struct {
@@ -100,31 +101,94 @@ func (c *WatchtowerClient) GetContainers() ([]ContainerStatus, error) {
 	return []ContainerStatus{}, nil
 }
 
-func (c *WatchtowerClient) TriggerUpdate() (*UpdateResponse, error) {
-	resp, err := c.doRequest("POST", "/v1/update")
+func (c *WatchtowerClient) TriggerUpdateWithTimeout(timeout time.Duration) (*UpdateResponse, error) {
+	// Create a custom client with longer timeout just for updates
+	customClient := &http.Client{
+		Timeout:   timeout,
+		Transport: c.HTTPClient.Transport,
+	}
+
+	url := fmt.Sprintf("%s%s", c.BaseURL, "/v1/update")
+	req, err := http.NewRequest("POST", url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("API request failed: %v", err)
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := customClient.Do(req)
+	if err != nil {
+		// Check if it's a timeout - this might mean the update is processing
+		if strings.Contains(err.Error(), "timeout") || strings.Contains(err.Error(), "deadline") {
+			return &UpdateResponse{
+				Updated: []string{},
+				Failed:  []string{},
+				Message: "Update triggered successfully (processing in background)",
+			}, nil
+		}
+		return nil, fmt.Errorf("API request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
+	// Handle response status codes
 	switch resp.StatusCode {
 	case http.StatusOK:
-		return &UpdateResponse{
-			Updated: []string{"Update triggered successfully - check Watchtower logs for details"},
-			Failed:  []string{},
-		}, nil
+		// Read the response body first to check if it's empty
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			// If we can't read the body but got 200 OK, treat as success
+			return &UpdateResponse{
+				Updated: []string{},
+				Failed:  []string{},
+				Message: "Update triggered successfully (empty response)",
+			}, nil
+		}
+
+		// If body is empty, treat as successful trigger
+		if len(body) == 0 {
+			return &UpdateResponse{
+				Updated: []string{},
+				Failed:  []string{},
+				Message: "Update triggered successfully",
+			}, nil
+		}
+
+		// Try to decode the response
+		var updateResp UpdateResponse
+		if err := json.Unmarshal(body, &updateResp); err != nil {
+			// If decoding fails but we got 200 OK, treat as success
+			return &UpdateResponse{
+				Updated: []string{},
+				Failed:  []string{},
+				Message: "Update triggered successfully (invalid JSON response)",
+			}, nil
+		}
+		return &updateResp, nil
 
 	case http.StatusAccepted:
 		return &UpdateResponse{
 			Updated: []string{"Update accepted and processing"},
 			Failed:  []string{},
+			Message: "Update queued and processing in background",
+		}, nil
+
+	case http.StatusNoContent:
+		return &UpdateResponse{
+			Updated: []string{},
+			Failed:  []string{},
+			Message: "Update triggered successfully (no content)",
 		}, nil
 
 	case http.StatusBadGateway:
 		return nil, fmt.Errorf("watchtower service unavailable (502 Bad Gateway)")
 
 	case http.StatusGatewayTimeout:
-		return nil, fmt.Errorf("watchtower gateway timeout (504)")
+		return &UpdateResponse{
+			Updated: []string{},
+			Failed:  []string{},
+			Message: "Update triggered (gateway timeout but likely processing)",
+		}, nil
 
 	case http.StatusServiceUnavailable:
 		return nil, fmt.Errorf("watchtower service temporarily unavailable (503)")
@@ -133,8 +197,21 @@ func (c *WatchtowerClient) TriggerUpdate() (*UpdateResponse, error) {
 		return nil, fmt.Errorf("authentication failed - check your token")
 
 	default:
+		// For any 2xx status, treat as success
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			return &UpdateResponse{
+				Updated: []string{},
+				Failed:  []string{},
+				Message: fmt.Sprintf("Update triggered successfully (status %d)", resp.StatusCode),
+			}, nil
+		}
 		return nil, fmt.Errorf("API returned unexpected status: %d", resp.StatusCode)
 	}
+}
+
+// Keep the original method for backward compatibility
+func (c *WatchtowerClient) TriggerUpdate() (*UpdateResponse, error) {
+	return c.TriggerUpdateWithTimeout(5 * time.Minute) // 5 minute timeout for updates
 }
 
 func (c *WatchtowerClient) GetStatus() (*WatchtowerStatus, error) {
