@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: watchtower-masterbot
+  labels:
+    app: watchtower-masterbot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: watchtower-masterbot
+  template:
+    metadata:
+      labels:
+        app: watchtower-masterbot
+    spec:
+      serviceAccountName: watchtower-manager
+      containers:
+      - name: masterbot
+        image: watchtower-masterbot:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8080
+        env:
+        - name: TELEGRAM_BOT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: telegram-secrets
+              key: bot-token
+        - name: KUBERNETES_NAMESPACE
+          value: "default"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 30
