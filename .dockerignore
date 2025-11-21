@@ -1,0 +1,26 @@
+# Binaries
+watchtower-bot
+watchtower-masterbot
+
+# Development and build files
+*.log
+build_errors.log
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Local configuration
+.env
+*.local
+
+# Temporary files
+tmp/
+temp/
+
+# Keep these in repository:
+# k8s/ - Kubernetes manifests ARE needed
+# .github/ - CI/CD workflows ARE needed  
+# helm/ - Helm charts ARE needed

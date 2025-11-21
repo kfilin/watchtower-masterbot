@@ -93,10 +93,10 @@ func (wb *WatchtowerBot) handleListServers(message *tgbotapi.Message) {
 		}
 	}
 
-	response.WriteString("\n\n*Quick Actions:*\n")
-	response.WriteString("• Use `/server <name>` to switch active server\n")
-	response.WriteString("• Use `/wt_update` to trigger container updates\n")
-	response.WriteString("• Use `/add_server` to add more servers")
+        response.WriteString("\n\n🚀 *Quick Actions:*\n")
+        response.WriteString("• Use `/server <name>` to switch active server\n")
+        response.WriteString("• Use `/wt_update` to trigger container updates\n")
+        response.WriteString("• Use `/add_server` to add more servers")
 
 	wb.sendMessage(message.Chat.ID, response.String())
 }

@@ -1,22 +1,10 @@
-# Binaries for programs and plugins
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-*.test
-*.out
+# Binaries
+watchtower-bot
+watchtower-masterbot
 
-# Go workspace file
-go.work
-
-# Dependency directories
-vendor/
-
-# Environment files (CRITICAL - never commit secrets!)
-.env
-.env.local
-.env.production
+# Backup files
+*.backup
+*~
 
 # IDE files
 .vscode/
@@ -24,10 +12,10 @@ vendor/
 *.swp
 *.swo
 
-# OS files
-.DS_Store
-Thumbs.db
+# Local configuration
+.env
+*.local
 
-# Build artifacts
-/watchtower-masterbot
-/bin/
+# Temporary files
+tmp/
+temp/
