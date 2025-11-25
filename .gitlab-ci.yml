@@ -108,18 +108,18 @@ deploy_staging:
         -n watchtower-system --dry-run=client -o yaml | kubectl apply -f -
     
     # Update deployment with new image
-    - kubectl set image deployment/watchtower-bot watchtower-bot=$IMAGE_NAME:$LATEST_TAG -n watchtower-system
+    - kubectl set image deployment/watchtower-masterbot masterbot=$IMAGE_NAME:$LATEST_TAG -n watchtower-system
     
     # Wait for rollout to complete
-    - kubectl rollout status deployment/watchtower-bot -n watchtower-system --timeout=180s
+    - kubectl rollout status deployment/watchtower-masterbot -n watchtower-system --timeout=180s
     
     # Verify deployment
-    - kubectl get pods -n watchtower-system -l app=watchtower-bot
-    - echo "✅ Deployment successful! watchtower-bot $LATEST_TAG is running"
+    - kubectl get pods -n watchtower-system -l app=watchtower-masterbot
+    - echo "✅ Deployment successful! watchtower-masterbot $LATEST_TAG is running"
     
     # Test health endpoint
     - |
-      POD_NAME=$(kubectl get pods -n watchtower-system -l app=watchtower-bot -o jsonpath='{.items[0].metadata.name}')
+      POD_NAME=$(kubectl get pods -n watchtower-system -l app=watchtower-masterbot -o jsonpath='{.items[0].metadata.name}')
       kubectl exec -n watchtower-system $POD_NAME -- wget -q -O- http://localhost:8081/health
       echo "Health check passed!"
       
