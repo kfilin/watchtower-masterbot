@@ -188,8 +188,8 @@ func (wb *WatchtowerBot) handleUpdate(message *tgbotapi.Message) {
 
 	// Build response EXACTLY as requested
 	var response strings.Builder
-	response.WriteString("✅ *Update Completed Successfully!*\n\n")
-	response.WriteString("📋 *Result:* Update triggered successfully\n\n")
+	response.WriteString("✅ *Update Triggered Successfully!*\n\n")
+	response.WriteString("📋 *Result:* Watchtower is checking for updates\n\n")
 
 	// Show container counts and names exactly as requested
 	updatedCount := len(updateResponse.Updated)

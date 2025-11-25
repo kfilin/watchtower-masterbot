@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: watchtower-masterbot
+  namespace: watchtower-system
+  labels:
+    app: watchtower-masterbot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: watchtower-masterbot
+  template:
+    metadata:
+      labels:
+        app: watchtower-masterbot
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8081"
+        prometheus.io/path: "/health"
+    spec:
+      serviceAccountName: watchtower-manager
+      containers:
+      - name: masterbot
+        image: watchtower-masterbot:latest
+        imagePullPolicy: Never
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+        env:
+        - name: TELEGRAM_BOT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: bot-token
+              name: telegram-secrets
+        - name: KUBERNETES_NAMESPACE
+          value: "watchtower-system"
+        ports:
+        - containerPort: 8081
+          name: health
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8081
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 1
