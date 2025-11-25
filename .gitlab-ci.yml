@@ -1,0 +1,135 @@
+stages:
+  - test
+  - build
+  - scan
+  - deploy
+
+variables:
+  DOCKER_HOST: tcp://docker:2375
+  DOCKER_TLS_CERTDIR: ""
+  IMAGE_NAME: $CI_REGISTRY_IMAGE/watchtower-bot
+  LATEST_TAG: $CI_COMMIT_SHORT_SHA
+
+# Cache Go modules for faster builds
+cache:
+  paths:
+    - .cache
+
+before_script:
+  - docker info
+
+# Test stage - runs on all branches
+test:
+  stage: test
+  image: golang:1.21-alpine
+  script:
+    - cd $CI_PROJECT_DIR
+    - go mod download
+    - go vet ./...
+    - go test -v ./...
+  artifacts:
+    paths:
+      - coverage.txt
+    when: always
+  except:
+    - main
+
+# More rigorous testing on main branch
+test_main:
+  stage: test
+  image: golang:1.21-alpine
+  script:
+    - cd $CI_PROJECT_DIR
+    - go mod download
+    - go vet ./...
+    - go test -race -v ./...
+    - go build -o watchtower-bot .  # Verify it builds
+  only:
+    - main
+
+# Build and push to GitLab Registry
+build:
+  stage: build
+  image: docker:24.0
+  services:
+    - docker:24.0-dind
+  before_script:
+    - apk add --no-cache git
+  script:
+    - echo "Building Docker image for watchtower-bot..."
+    - docker build -t $IMAGE_NAME:$LATEST_TAG -t $IMAGE_NAME:latest .
+    - docker push $IMAGE_NAME:$LATEST_TAG
+    - docker push $IMAGE_NAME:latest
+    - echo "Image pushed: $IMAGE_NAME:$LATEST_TAG"
+  only:
+    - main
+  dependencies:
+    - test_main
+
+# Security scanning
+security_scan:
+  stage: scan
+  image: docker:24.0
+  services:
+    - docker:24.0-dind
+  before_script:
+    - apk add --no-cache curl
+    - curl -sSfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+  script:
+    - echo "Scanning for vulnerabilities..."
+    - trivy image --exit-code 0 --format table $IMAGE_NAME:$LATEST_TAG
+    - trivy image --exit-code 1 --severity CRITICAL $IMAGE_NAME:$LATEST_TAG
+    - echo "Security scan passed - no CRITICAL vulnerabilities"
+  only:
+    - main
+  dependencies:
+    - build
+
+# DEPLOY - Using GitLab Registry + Image Pull Secrets (Production approach)
+deploy_staging:
+  stage: deploy
+  image: bitnami/kubectl:latest
+  before_script:
+    - apk add --no-cache gettext
+    - mkdir -p ~/.kube
+    - echo "$KUBECONFIG_STAGING" | base64 -d > ~/.kube/config
+    - chmod 600 ~/.kube/config
+    - kubectl cluster-info
+  script:
+    - echo "Deploying watchtower-bot $LATEST_TAG to staging..."
+    
+    # Create or update registry secret
+    - |
+      kubectl create secret docker-registry gitlab-registry \
+        --docker-server=$CI_REGISTRY \
+        --docker-username=$CI_DEPLOY_USER \
+        --docker-password=$CI_DEPLOY_PASSWORD \
+        --docker-email="$GITLAB_USER_EMAIL" \
+        -n watchtower-system --dry-run=client -o yaml | kubectl apply -f -
+    
+    # Update deployment with new image
+    - kubectl set image deployment/watchtower-bot watchtower-bot=$IMAGE_NAME:$LATEST_TAG -n watchtower-system
+    
+    # Wait for rollout to complete
+    - kubectl rollout status deployment/watchtower-bot -n watchtower-system --timeout=180s
+    
+    # Verify deployment
+    - kubectl get pods -n watchtower-system -l app=watchtower-bot
+    - echo "✅ Deployment successful! watchtower-bot $LATEST_TAG is running"
+    
+    # Test health endpoint
+    - |
+      POD_NAME=$(kubectl get pods -n watchtower-system -l app=watchtower-bot -o jsonpath='{.items[0].metadata.name}')
+      kubectl exec -n watchtower-system $POD_NAME -- wget -q -O- http://localhost:8081/health
+      echo "Health check passed!"
+      
+  only:
+    - main
+  dependencies:
+    - security_scan
+  environment:
+    name: staging
+    url: https://your-staging-url.com
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: manual  # Optional: require manual click to deploy

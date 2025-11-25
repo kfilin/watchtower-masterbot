@@ -1,37 +1,68 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: watchtower-masterbot
+  name: watchtower-bot
+  namespace: watchtower-system
   labels:
-    app: watchtower-masterbot
+    app: watchtower-bot
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: watchtower-masterbot
+      app: watchtower-bot
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   template:
     metadata:
       labels:
-        app: watchtower-masterbot
+        app: watchtower-bot
     spec:
-      serviceAccountName: watchtower-manager
+      # CRITICAL: Add image pull secret for GitLab Registry
+      imagePullSecrets:
+      - name: gitlab-registry
+      serviceAccountName: watchtower-bot
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
       containers:
-      - name: masterbot
-        image: watchtower-masterbot:latest
-        imagePullPolicy: Never
+      - name: watchtower-bot
+        image: "registry.gitlab.com/your-username/your-project/watchtower-bot:latest"  # Will be overridden by kubectl set image
+        imagePullPolicy: Always
         ports:
         - containerPort: 8080
+          name: bot-api
+        - containerPort: 8081  
+          name: health
+        - containerPort: 8082
+          name: metrics
         env:
         - name: TELEGRAM_BOT_TOKEN
           valueFrom:
             secretKeyRef:
-              name: telegram-secrets
+              name: telegram-secret
               key: bot-token
-        - name: KUBERNETES_NAMESPACE
-          value: "default"
         livenessProbe:
           httpGet:
             path: /health
-            port: 8080
-          initialDelaySeconds: 30
-          periodSeconds: 30
+            port: 8081
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi" 
+            cpu: "100m"
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
