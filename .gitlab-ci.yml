@@ -32,7 +32,7 @@ test:
       - coverage.txt
     when: always
   except:
-    - main
+    - master
 
 # More rigorous testing on main branch
 test_main:
@@ -45,7 +45,7 @@ test_main:
     - go test -race -v ./...
     - go build -o watchtower-bot .  # Verify it builds
   only:
-    - main
+    - master
 
 # Build and push to GitLab Registry
 build:
@@ -62,9 +62,9 @@ build:
     - docker push $IMAGE_NAME:latest
     - echo "Image pushed: $IMAGE_NAME:$LATEST_TAG"
   only:
-    - main
+    - master
   dependencies:
-    - test_main
+    - test_master
 
 # Security scanning
 security_scan:
@@ -81,7 +81,7 @@ security_scan:
     - trivy image --exit-code 1 --severity CRITICAL $IMAGE_NAME:$LATEST_TAG
     - echo "Security scan passed - no CRITICAL vulnerabilities"
   only:
-    - main
+    - master
   dependencies:
     - build
 
@@ -124,12 +124,12 @@ deploy_staging:
       echo "Health check passed!"
       
   only:
-    - main
+    - master
   dependencies:
     - security_scan
   environment:
     name: staging
     url: https://your-staging-url.com
   rules:
-    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "master"
       when: manual  # Optional: require manual click to deploy
