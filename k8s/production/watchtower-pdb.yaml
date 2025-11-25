@@ -2,7 +2,7 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: watchtower-masterbot-pdb
-  namespace: watchtower-system
+  namespace: watchtower-masterbot
 spec:
   minAvailable: 1
   selector:

@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: watchtower-masterbot
-  namespace: watchtower-system
+  namespace: watchtower-masterbot
   labels:
     app: watchtower-masterbot
 spec:

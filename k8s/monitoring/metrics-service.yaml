@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: watchtower-metrics
-  namespace: watchtower-system
+  namespace: watchtower-masterbot
   labels:
     app: watchtower-masterbot
     component: metrics

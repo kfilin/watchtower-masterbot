@@ -6,6 +6,7 @@ import (
 	"watchtower-masterbot/bot"
 	"watchtower-masterbot/config"
 	"watchtower-masterbot/servers"
+	"watchtower-masterbot/health"  // ADD HEALTH IMPORT
 )
 
 func main() {
@@ -18,6 +19,9 @@ func main() {
 
 	// Initialize server manager with encryption
 	serverManager := servers.NewManager(cfg.EncryptionKey)
+	
+	// START HEALTH SERVER - ADD THIS CRITICAL LINE
+	health.StartHealthServer()
 	
 	// Create and start bot
 	watchtowerBot := bot.NewBot(cfg, serverManager)

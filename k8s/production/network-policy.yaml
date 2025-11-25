@@ -2,7 +2,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: watchtower-deny-all
-  namespace: watchtower-system
+  namespace: watchtower-masterbot
 spec:
   podSelector: {}
   policyTypes:
@@ -13,7 +13,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: watchtower-allow-telegram
-  namespace: watchtower-system
+  namespace: watchtower-masterbot
 spec:
   podSelector:
     matchLabels:
