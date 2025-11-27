@@ -3,7 +3,7 @@ version: '3.8'
 services:
   watchtower-masterbot:
     build: 
-      context: .
+      context: ..
       dockerfile: Dockerfile
     image: watchtower-master-bot:latest
     container_name: watchtower-master-bot

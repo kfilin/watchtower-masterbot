@@ -1,4 +1,4 @@
-module watchtower-masterbot
+module github.com/kfilin/watchtower-masterbot
 
 go 1.21
 

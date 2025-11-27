@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 	
-	"watchtower-masterbot/internal/api"
+	"github.com/kfilin/watchtower-masterbot/internal/api"
 )
 
 type ServerManager struct {

@@ -3,10 +3,10 @@ package main
 import (
 	"log"
 	
-	"watchtower-masterbot/bot"
-	"watchtower-masterbot/config"
-	"watchtower-masterbot/servers"
-	"watchtower-masterbot/health"  // ADD HEALTH IMPORT
+	"github.com/kfilin/watchtower-masterbot/bot"
+	"github.com/kfilin/watchtower-masterbot/config"
+	"github.com/kfilin/watchtower-masterbot/servers"
+	"github.com/kfilin/watchtower-masterbot/health"  // ADD HEALTH IMPORT
 )
 
 func main() {

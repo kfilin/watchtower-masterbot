@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: watchtower-masterbot-prod
+  namespace: watchtower-masterbot
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: watchtower-masterbot-prod
+  template:
+    metadata:
+      labels:
+        app: watchtower-masterbot-prod
+    spec:
+      serviceAccountName: watchtower-manager
+      containers:
+      - name: masterbot
+        image: watchtower-masterbot:prod
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+        - containerPort: 8081
+        env:
+        - name: TELEGRAM_BOT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: telegram-secrets
+              key: bot-token
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8081
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false

@@ -6,7 +6,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o watchtower-bot .
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o watchtower-masterbot .
 
 # Final minimal image
 FROM alpine:latest
@@ -17,7 +17,7 @@ WORKDIR /root/
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 USER appuser
 
-COPY --from=builder /app/watchtower-bot .
+COPY --from=builder /app/watchtower-masterbot .
 COPY --from=builder /app/config ./config
 
-CMD ["./watchtower-bot"]
+CMD ["./watchtower-masterbot"]

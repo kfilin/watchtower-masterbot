@@ -159,3 +159,23 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Ready for production deployment and enhanced features!** 🚀
 
+
+## 🚀 Deployment
+
+### Docker Deployment
+```bash
+# Build from source
+docker build -t watchtower-masterbot .
+
+# Or use docker-compose
+docker-compose -f deployments/docker/docker-compose.yml up
+
+Kubernetes Deployment
+bash
+
+# Apply Kubernetes manifests
+kubectl apply -f deployments/kubernetes/k8s/
+
+# Or use Helm
+helm install watchtower-masterbot deployments/kubernetes/helm/watchtower-masterbot/
+

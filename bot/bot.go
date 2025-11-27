@@ -3,8 +3,8 @@ package bot
 import (
 	"log"
 
-	"watchtower-masterbot/config"
-	"watchtower-masterbot/servers"
+	"github.com/kfilin/watchtower-masterbot/config"
+	"github.com/kfilin/watchtower-masterbot/servers"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
