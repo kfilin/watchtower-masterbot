@@ -1,13 +1,13 @@
 version: '3.8'
 
 services:
-  watchtower-bot:
+  watchtower-masterbot:
     build: 
       context: .
       dockerfile: Dockerfile
     image: watchtower-master-bot:latest
     container_name: watchtower-master-bot
-    hostname: watchtower-bot
+    hostname: watchtower-masterbot
     env_file:
       - .env
     restart: unless-stopped
@@ -23,7 +23,7 @@ services:
       
       # Watchtower auto-update labels
       - "com.centurylinklabs.watchtower.enable=true"
-      - "com.centurylinklabs.watchtower.scope=watchtower-bot"
+      - "com.centurylinklabs.watchtower.scope=watchtower-masterbot"
       - "com.centurylinklabs.watchtower.monitor-only=false"
       - "com.centurylinklabs.watchtower.lifecycle.hooks=true"
       - "com.centurylinklabs.watchtower.interval=300"
@@ -44,4 +44,4 @@ networks:
 
 volumes:
   bot_data:
-    name: watchtower-bot-data
+    name: watchtower-masterbot-data

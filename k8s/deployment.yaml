@@ -1,15 +1,15 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: watchtower-bot
+  name: watchtower-masterbot
   namespace: watchtower-masterbot
   labels:
-    app: watchtower-bot
+    app: watchtower-masterbot
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: watchtower-bot
+      app: watchtower-masterbot
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -18,18 +18,18 @@ spec:
   template:
     metadata:
       labels:
-        app: watchtower-bot
+        app: watchtower-masterbot
     spec:
       # CRITICAL: Add image pull secret for GitLab Registry
       imagePullSecrets:
       - name: gitlab-registry
-      serviceAccountName: watchtower-bot
+      serviceAccountName: watchtower-masterbot
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
       containers:
-      - name: watchtower-bot
-        image: "registry.gitlab.com/your-username/your-project/watchtower-bot:latest"  # Will be overridden by kubectl set image
+      - name: watchtower-masterbot
+        image: "registry.gitlab.com/your-username/your-project/watchtower-masterbot:latest"  # Will be overridden by kubectl set image
         imagePullPolicy: Always
         ports:
         - containerPort: 8080

@@ -20,7 +20,7 @@ jobs:
         go-version: '1.21'
         
     - name: Build
-      run: go build -o watchtower-bot
+      run: go build -o watchtower-masterbot
       
     - name: Test
       run: go test ./... -v
