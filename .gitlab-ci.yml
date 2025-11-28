@@ -1,4 +1,3 @@
-# .gitlab-ci.yml - FIXED VERSION
 stages:
   - test
   - security-scan
@@ -10,7 +9,6 @@ variables:
   DOCKER_IMAGE: $CI_REGISTRY_IMAGE
   DOCKER_TAG: $CI_COMMIT_SHORT_SHA
 
-# Test stage
 test:
   stage: test
   image: golang:1.21-alpine
@@ -19,26 +17,20 @@ test:
     - go mod download
     - go vet ./...
     - go test -v ./...
-  artifacts:
-    paths:
-      - coverage.txt
   only:
     - master
 
-# Security scan - SIMPLIFIED VERSION (no Docker dependency)
-security_scan:
+security-scan:
   stage: security-scan
   image: aquasec/trivy:latest
   script:
     - trivy --version
-    - trivy filesystem --exit-code 0 --no-progress .  # Exit code 0 to not fail pipeline
+    - trivy filesystem --exit-code 0 --no-progress .
     - echo "Security scan completed - review findings above"
-  dependencies: []
-  allow_failure: true  # Don't fail pipeline on security findings
+  allow_failure: true
   only:
     - master
 
-# Build Go binary
 build:
   stage: build
   image: golang:1.21-alpine
@@ -52,8 +44,7 @@ build:
   only:
     - master
 
-# Docker build
-build_docker:
+docker-build:
   stage: docker-build
   image: docker:latest
   services:
@@ -73,38 +64,28 @@ build_docker:
   only:
     - master
 
-# Staging deployment
-deploy_staging:
+deploy-staging:
   stage: deploy
   image: bitnami/kubectl:latest
   script:
-    - echo "🚀 Deploying Watchtower-MasterBot to Kubernetes staging..."
+    - echo "🚀 Simulating deployment to staging..."
     - kubectl version --client
-    - echo "KUBECONFIG would be set here for actual deployment"
-    - echo "Simulating: kubectl apply -f k8s/"
-    - echo "✅ Watchtower-MasterBot staging deployment completed (simulated)"
+    - echo "Deployment would happen here with proper kubeconfig"
   environment:
     name: staging
   only:
     - master
   when: manual
 
-# Production deployment
-deploy_production:
+deploy-production:
   stage: deploy
   image: bitnami/kubectl:latest
   script:
-    - echo "🎯 Deploying Watchtower-MasterBot to Kubernetes PRODUCTION..."
+    - echo "🎯 Simulating deployment to production..."
     - kubectl version --client
-    - echo "KUBECONFIG would be set here for actual deployment"
-    - echo "Simulating: kubectl apply -f k8s/"
-    - echo "✅ Watchtower-MasterBot production deployment completed (simulated)"
+    - echo "Deployment would happen here with proper kubeconfig"
   environment:
     name: production
   only:
     - master
   when: manual
-
-workflow:
-  rules:
-    - if: $CI_COMMIT_BRANCH == "master"
