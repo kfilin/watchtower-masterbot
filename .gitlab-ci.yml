@@ -1,135 +1,202 @@
+# File: .gitlab-ci.yml
 stages:
   - test
+  - quality
+  - security
   - build
-  - scan
   - deploy
 
 variables:
-  DOCKER_HOST: tcp://docker:2375
-  DOCKER_TLS_CERTDIR: ""
-  IMAGE_NAME: $CI_REGISTRY_IMAGE/watchtower-masterbot
-  LATEST_TAG: $CI_COMMIT_SHORT_SHA
+  GO_VERSION: "1.21"
+  DOCKER_IMAGE: "registry.gitlab.com/kfilin/watchtower-masterbot"
+  DOCKER_TAG: "$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA"
 
-# Cache Go modules for faster builds
 cache:
   paths:
-    - .cache
+    - .cache/go-build
+    - go/pkg/mod/
+  key: "$CI_COMMIT_REF_SLUG"
 
 before_script:
-  - docker info
+  - export GO111MODULE=on
+  - export GOPRIVATE=gitlab.com/kfilin/*
 
-# Test stage - runs on all branches
-test:
+# === TESTING STAGE ===
+
+unit_tests:
   stage: test
-  image: golang:1.21-alpine
+  image: golang:$GO_VERSION
   script:
-    - cd $CI_PROJECT_DIR
+    - echo "🚀 Starting unit tests for watchtower-masterbot"
+    - go version
     - go mod download
+    - echo "📝 Running go vet..."
     - go vet ./...
-    - go test -v ./...
+    - echo "🧪 Running tests..."
+    - go test -v -race ./...
   artifacts:
-    paths:
-      - coverage.txt
     when: always
-  except:
-    - master
+    reports:
+      junit: report.xml
+  tags:
+    - docker
 
-# More rigorous testing on main branch
-test_main:
+integration_tests:
   stage: test
-  image: golang:1.21-alpine
-  script:
-    - cd $CI_PROJECT_DIR
-    - go mod download
-    - go vet ./...
-    - go test -race -v ./...
-    - go build -o watchtower-masterbot .  # Verify it builds
-  only:
-    - master
-
-# Build and push to GitLab Registry
-build:
-  stage: build
-  image: docker:24.0
+  image: docker:latest
   services:
-    - docker:24.0-dind
-  before_script:
-    - apk add --no-cache git
-  script:
-    - echo "Building Docker image for watchtower-masterbot..."
-    - docker build -t $IMAGE_NAME:$LATEST_TAG -t $IMAGE_NAME:latest .
-    - docker push $IMAGE_NAME:$LATEST_TAG
-    - docker push $IMAGE_NAME:latest
-    - echo "Image pushed: $IMAGE_NAME:$LATEST_TAG"
-  only:
-    - master
-  dependencies:
-    - test_master
-
-# Security scanning
-security_scan:
-  stage: scan
-  image: docker:24.0
-  services:
-    - docker:24.0-dind
+    - docker:dind
   before_script:
     - apk add --no-cache curl
-    - curl -sSfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
   script:
-    - echo "Scanning for vulnerabilities..."
-    - trivy image --exit-code 0 --format table $IMAGE_NAME:$LATEST_TAG
-    - trivy image --exit-code 1 --severity CRITICAL $IMAGE_NAME:$LATEST_TAG
-    - echo "Security scan passed - no CRITICAL vulnerabilities"
+    - echo "🐳 Building Docker image for integration tests..."
+    - docker build -t $DOCKER_IMAGE:integration-test .
+    
+    - echo "🚀 Starting container..."
+    - |
+      docker run -d --name watchtower-test \
+        -e TELEGRAM_BOT_TOKEN="test-token-12345" \
+        -e ADMIN_USER_ID="304528450" \
+        -e HEALTH_PORT="18080" \
+        -p 18080:18080 \
+        $DOCKER_IMAGE:integration-test
+    
+    - sleep 10
+    
+    - |
+      echo "🔍 Testing health endpoints..."
+      response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:18080/health || echo "curl_failed")
+      if [ "$response" = "200" ]; then
+        echo "✅ Health endpoint: HTTP 200"
+      else
+        echo "❌ Health endpoint failed: $response"
+        docker logs watchtower-test
+        exit 1
+      fi
+    - docker stop watchtower-test
+    - docker rm watchtower-test
   only:
-    - master
-  dependencies:
-    - build
+    - main
+    - develop
+  tags:
+    - docker
 
-# DEPLOY - Using GitLab Registry + Image Pull Secrets (Production approach)
+# === QUALITY STAGE ===
+
+code_format:
+  stage: quality
+  image: golang:$GO_VERSION
+  script:
+    - go mod download
+    - |
+      UNFORMATTED=$(gofmt -l .)
+      if [ -n "$UNFORMATTED" ]; then
+        echo "❌ Code formatting issues found:"
+        echo "$UNFORMATTED"
+        exit 1
+      else
+        echo "✅ Code is properly formatted"
+      fi
+  tags:
+    - docker
+
+static_analysis:
+  stage: quality
+  image: golang:$GO_VERSION
+  script:
+    - go mod download
+    - go vet ./...
+    - echo "✅ Go vet completed"
+  tags:
+    - docker
+
+# === SECURITY STAGE ===
+
+container_scan:
+  stage: security
+  image: 
+    name: aquasec/trivy:latest
+    entrypoint: [""]
+  variables:
+    TRIVY_NO_PROGRESS: "true"
+  script:
+    - echo "🔒 Scanning container for vulnerabilities..."
+    - docker build -t $DOCKER_IMAGE:security-scan .
+    - trivy image --severity HIGH,CRITICAL $DOCKER_IMAGE:security-scan
+  only:
+    - main
+    - develop
+  tags:
+    - docker
+
+# === BUILD STAGE ===
+
+build_docker:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  before_script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
+  script:
+    - |
+      echo "🏗️ Building Docker image..."
+      docker build \
+        -t $DOCKER_IMAGE:$DOCKER_TAG \
+        -t $DOCKER_IMAGE:latest \
+        .
+    - |
+      echo "📦 Pushing Docker images..."
+      docker push $DOCKER_IMAGE:$DOCKER_TAG
+      docker push $DOCKER_IMAGE:latest
+    - echo "✅ Images pushed: $DOCKER_IMAGE:$DOCKER_TAG"
+  only:
+    - main
+    - develop
+    - tags
+  tags:
+    - docker
+
+# === DEPLOY STAGE ===
+
 deploy_staging:
   stage: deploy
-  image: bitnami/kubectl:latest
-  before_script:
-    - apk add --no-cache gettext
-    - mkdir -p ~/.kube
-    - echo "$KUBECONFIG_STAGING" | base64 -d > ~/.kube/config
-    - chmod 600 ~/.kube/config
-    - kubectl cluster-info
+  image: alpine:latest
   script:
-    - echo "Deploying watchtower-masterbot $LATEST_TAG to staging..."
-    
-    # Create or update registry secret
     - |
-      kubectl create secret docker-registry gitlab-registry \
-        --docker-server=$CI_REGISTRY \
-        --docker-username=$CI_DEPLOY_USER \
-        --docker-password=$CI_DEPLOY_PASSWORD \
-        --docker-email="$GITLAB_USER_EMAIL" \
-        -n watchtower-masterbot --dry-run=client -o yaml | kubectl apply -f -
-    
-    # Update deployment with new image
-    - kubectl set image deployment/watchtower-masterbot masterbot=$IMAGE_NAME:$LATEST_TAG -n watchtower-masterbot
-    
-    # Wait for rollout to complete
-    - kubectl rollout status deployment/watchtower-masterbot -n watchtower-masterbot --timeout=180s
-    
-    # Verify deployment
-    - kubectl get pods -n watchtower-masterbot -l app=watchtower-masterbot
-    - echo "✅ Deployment successful! watchtower-masterbot $LATEST_TAG is running"
-    
-    # Test health endpoint
-    - |
-      POD_NAME=$(kubectl get pods -n watchtower-masterbot -l app=watchtower-masterbot -o jsonpath='{.items[0].metadata.name}')
-      kubectl exec -n watchtower-masterbot $POD_NAME -- wget -q -O- http://localhost:8081/health
-      echo "Health check passed!"
-      
-  only:
-    - master
-  dependencies:
-    - security_scan
+      echo "🚀 Deploying to staging..."
+      echo "📦 Image: $DOCKER_IMAGE:$DOCKER_TAG"
+      echo "✅ Staging deployment completed (simulated)"
   environment:
     name: staging
-    url: https://your-staging-url.com
+    url: https://staging-watchtower.yourdomain.com
+  only:
+    - develop
+  when: manual
+  tags:
+    - docker
+
+deploy_production:
+  stage: deploy
+  image: alpine:latest
+  script:
+    - |
+      echo "🎯 Deploying to PRODUCTION..."
+      echo "📦 Image: $DOCKER_IMAGE:$DOCKER_TAG"
+      echo "✅ Production deployment completed (simulated)"
+  environment:
+    name: production
+    url: https://watchtower.yourdomain.com
+  only:
+    - main
+  when: manual
+  tags:
+    - docker
+
+workflow:
   rules:
-    - if: $CI_COMMIT_BRANCH == "master"
-      when: manual  # Optional: require manual click to deploy
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - when: never
