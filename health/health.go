@@ -1,8 +1,11 @@
 package health
 
 import (
+	"context"
 	"encoding/json"
+	"log"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -11,30 +14,101 @@ type HealthStatus struct {
 	Timestamp time.Time `json:"timestamp"`
 	Version   string    `json:"version"`
 	Uptime    string    `json:"uptime"`
+	BotStatus string    `json:"bot_status,omitempty"`
 }
 
-func StartHealthServer() {
-	startTime := time.Now()
+var (
+	startTime    time.Time
+	server       *http.Server
+	serverWg     sync.WaitGroup
+	botStatus    string = "initializing"
+	healthMutex  sync.RWMutex
+)
+
+func init() {
+	startTime = time.Now()
+}
+
+// StartServer starts the health check server on the specified port
+func StartServer(port string) error {
+	if port == "" {
+		port = "8080" // Default port
+	}
 	
-	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		uptime := time.Since(startTime)
-		
-		health := HealthStatus{
-			Status:    "healthy",
-			Timestamp: time.Now(),
-			Version:   "1.1.0",
-			Uptime:    uptime.String(),
+	mux := http.NewServeMux()
+	mux.HandleFunc("/health", healthHandler)
+	mux.HandleFunc("/ready", readyHandler)
+	mux.HandleFunc("/live", liveHandler)
+
+	server = &http.Server{
+		Addr:    ":" + port,
+		Handler: mux,
+	}
+
+	log.Printf("🏥 Health server starting on port %s", port)
+	
+	// Start server in background
+	serverWg.Add(1)
+	go func() {
+		defer serverWg.Done()
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Printf("❌ Health server error: %v", err)
 		}
-		
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(health)
-	})
+	}()
 	
-	http.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
-	})
-	
-	// Use a different port to avoid conflict with massage-bot
-	go http.ListenAndServe(":8081", nil)
+	// Give the server a moment to start
+	time.Sleep(100 * time.Millisecond)
+	return nil
+}
+
+// SetBotStatus updates the bot status for health checks
+func SetBotStatus(status string) {
+	healthMutex.Lock()
+	defer healthMutex.Unlock()
+	botStatus = status
+}
+
+// Shutdown gracefully shuts down the health server
+func Shutdown() {
+	if server != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		server.Shutdown(ctx)
+		serverWg.Wait()
+	}
+}
+
+func healthHandler(w http.ResponseWriter, r *http.Request) {
+	healthMutex.RLock()
+	currentBotStatus := botStatus
+	healthMutex.RUnlock()
+
+	// Determine overall status based on bot status
+	overallStatus := "healthy"
+	if currentBotStatus == "failed" {
+		overallStatus = "degraded"
+	}
+
+	response := HealthStatus{
+		Status:    overallStatus,
+		Timestamp: time.Now(),
+		Version:   "1.1.0",
+		Uptime:    time.Since(startTime).String(),
+		BotStatus: currentBotStatus,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "Failed to encode health response", http.StatusInternalServerError)
+	}
+}
+
+func readyHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("OK"))
+}
+
+func liveHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("ALIVE"))
 }

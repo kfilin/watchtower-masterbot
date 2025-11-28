@@ -1,160 +1,126 @@
 package bot
 
 import (
+	"fmt"
 	"log"
 
-	"github.com/kfilin/watchtower-masterbot/config"
-	"github.com/kfilin/watchtower-masterbot/servers"
-
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/kfilin/watchtower-masterbot/servers"
 )
 
+// WatchtowerBot matches the receiver name in your handlers.go
 type WatchtowerBot struct {
-	bot           *tgbotapi.BotAPI
-	config        *config.Config
-	serverManager *servers.ServerManager
+	API           *tgbotapi.BotAPI
+	AdminID       int64
+	serverManager *servers.ServerManager // Fixed type name
 }
 
-func NewBot(cfg *config.Config, serverManager *servers.ServerManager) *WatchtowerBot {
-	botAPI, err := tgbotapi.NewBotAPI(cfg.TelegramToken)
-	if err != nil {
-		log.Panic(err)
+// NewBot initializes the bot without panicking
+func NewBot(token string, adminID int64, encryptionKey string) (*WatchtowerBot, error) {
+	if token == "" {
+		return nil, fmt.Errorf("TELEGRAM_BOT_TOKEN is missing")
 	}
 
-	botAPI.Debug = true
+	api, err := tgbotapi.NewBotAPI(token)
+	if err != nil {
+		return nil, fmt.Errorf("failed to authenticate with Telegram: %w", err)
+	}
 
-	log.Printf("Authorized on account %s", botAPI.Self.UserName)
+	api.Debug = false
+
+	// Initialize the ServerManager with encryption key
+	mgr := servers.NewManager(encryptionKey)
 
 	return &WatchtowerBot{
-		bot:           botAPI,
-		config:        cfg,
-		serverManager: serverManager,
-	}
+		API:           api,
+		AdminID:       adminID,
+		serverManager: mgr,
+	}, nil
 }
 
-func (wb *WatchtowerBot) Start() error {
+// Start begins the update loop
+func (wb *WatchtowerBot) Start() {
+	log.Printf("🤖 Authorized on account %s", wb.API.Self.UserName)
+
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 
-	updates := wb.bot.GetUpdatesChan(u)
+	updates := wb.API.GetUpdatesChan(u)
 
 	for update := range updates {
-		if update.Message != nil {
-			wb.handleMessage(update.Message)
+		if update.Message == nil {
+			continue
 		}
-	}
 
-	return nil
+		// Security Check
+		if update.Message.From.ID != wb.AdminID {
+			continue
+		}
+
+		// Route the update to the appropriate handler
+		wb.Handle(update)
+	}
 }
 
-func (wb *WatchtowerBot) handleMessage(message *tgbotapi.Message) {
-	// Authorization check
-	if message.From.ID != wb.config.AdminUserID {
-		wb.sendMessage(message.Chat.ID, "❌ Unauthorized access")
-		return
-	}
+// Handle dispatches commands to methods defined in handlers.go
+func (wb *WatchtowerBot) Handle(update tgbotapi.Update) {
+	msg := update.Message
+	cmd := msg.Command()
+	text := msg.Text
 
-	// Handle commands and button clicks
-	switch message.Command() {
-	case "start", "bot":
-		wb.handleStart(message)
-	case "add_server", "addserver": // Support both old and new during transition
-		wb.handleAddServer(message)
-	case "servers":
-		wb.handleListServers(message)
-	case "server":
-		wb.handleSwitchServer(message)
-	case "wt_update", "wtupdate": // Support both old and new
-		wb.handleUpdate(message)
+	switch {
+	case cmd == "start":
+		wb.showMainMenu(msg.Chat.ID)
+	case cmd == "add_server" || text == "🚀 Add Server":
+		wb.handleAddServer(msg)
+	case cmd == "servers" || text == "📋 List Servers":
+		wb.handleListServers(msg)
+	case cmd == "server" || text == "🔄 Switch Server":
+		wb.handleSwitchServer(msg)
+	case cmd == "wt_update":
+		wb.handleUpdate(msg)
 	default:
-		// Handle button clicks and unknown commands
-		wb.handleButtonClicks(message)
+		// Unknown command, show menu
+		wb.showMainMenu(msg.Chat.ID)
 	}
 }
 
-func (wb *WatchtowerBot) handleStart(message *tgbotapi.Message) {
-	welcomeText := `🚀 *Watchtower MasterBot*
-
-*Manage multiple Watchtower instances from one place\!*
-
-📋 *Available Commands:*
-
-• /add\_server \- Add a new Watchtower server
-• /servers \- List your managed servers  
-• /server \- Switch active server context
-• /wt\_update \- Trigger container updates
-
-💡 *Quick Start:*
-1\. Use /add\_server to add your first server
-2\. Switch between servers with /server
-3\. Trigger updates with /wt\_update
-
-🔒 *Security:* All data encrypted with AES\-256`
-
-	msg := tgbotapi.NewMessage(message.Chat.ID, welcomeText)
-	msg.ParseMode = "MarkdownV2"
-	msg.ReplyMarkup = wb.createMainMenu()
-	wb.bot.Send(msg)
-}
-
-func (wb *WatchtowerBot) createMainMenu() tgbotapi.ReplyKeyboardMarkup {
-	// Professional 2-column menu layout using the proper constructor
-	return tgbotapi.NewReplyKeyboard(
-		tgbotapi.NewKeyboardButtonRow(
-			tgbotapi.NewKeyboardButton("🚀 Add Server"),
-			tgbotapi.NewKeyboardButton("📋 Servers List"),
-		),
-		tgbotapi.NewKeyboardButtonRow(
-			tgbotapi.NewKeyboardButton("🔄 Switch Server"),
-			tgbotapi.NewKeyboardButton("⚡ Update Containers"),
-		),
-		tgbotapi.NewKeyboardButtonRow(
-			tgbotapi.NewKeyboardButton("ℹ️ Bot Info"),
-		),
-	)
-}
-
-func (wb *WatchtowerBot) handleButtonClicks(message *tgbotapi.Message) {
-	text := message.Text
-
-	switch text {
-	case "🚀 Add Server":
-		wb.handleAddServer(message)
-	case "📋 Servers List":
-		wb.handleListServers(message)
-	case "🔄 Switch Server":
-		wb.handleSwitchServer(message)
-	case "⚡ Update Containers":
-		wb.handleUpdate(message)
-	case "ℹ️ Bot Info":
-		wb.handleStart(message)
-	default:
-		wb.handleUnknownCommand(message)
-	}
-}
-
-func (wb *WatchtowerBot) handleUnknownCommand(message *tgbotapi.Message) {
-	helpText := `❓ *Unknown Command*
-
-📋 *Available Commands:*
-• /add_server - Add new Watchtower server
-• /servers - List managed servers
-• /server - Switch active server  
-• /wt_update - Trigger container updates
-
-💡 Click menu buttons or type commands directly`
-
-	msg := tgbotapi.NewMessage(message.Chat.ID, helpText)
-	msg.ParseMode = "Markdown"
-	msg.ReplyMarkup = wb.createMainMenu()
-	wb.bot.Send(msg)
-}
-
+// sendMessage is a helper used by handlers.go
 func (wb *WatchtowerBot) sendMessage(chatID int64, text string) {
 	msg := tgbotapi.NewMessage(chatID, text)
 	msg.ParseMode = "Markdown"
+	
+	// Create persistent keyboard menu
+	keyboard := tgbotapi.NewReplyKeyboard(
+		tgbotapi.NewKeyboardButtonRow(
+			tgbotapi.NewKeyboardButton("🚀 Add Server"),
+			tgbotapi.NewKeyboardButton("🔄 Switch Server"),
+		),
+		tgbotapi.NewKeyboardButtonRow(
+			tgbotapi.NewKeyboardButton("📋 List Servers"),
+		),
+	)
+	msg.ReplyMarkup = keyboard
 
-	if _, sendErr := wb.bot.Send(msg); sendErr != nil {
-		log.Printf("Error sending message: %v", sendErr)
+	if _, err := wb.API.Send(msg); err != nil {
+		log.Printf("❌ Failed to send message: %v", err)
 	}
+}
+
+// showMainMenu displays the welcome message
+// showMainMenu displays the welcome message
+func (wb *WatchtowerBot) showMainMenu(chatID int64) {
+	text := "🚀 *Watchtower MasterBot*\n\n" +
+		"Manage multiple Watchtower instances from one place!\n\n" +
+		"📋 *Available Commands:*\n\n" +
+		"• /add_server - Add a new Watchtower server\n" +
+		"• /servers - List your managed servers\n" +
+		"• /server - Switch active server context\n" +
+		"• /wt_update - Trigger container updates\n\n" +
+		"💡 *Quick Start:*\n" +
+		"1. Use /add_server to add your first server\n" +
+		"2. Switch between servers with /server\n" +
+		"3. Trigger updates with /wt_update\n\n" +
+		"🔒 *Security:* All data encrypted with AES-256"
+	wb.sendMessage(chatID, text)
 }

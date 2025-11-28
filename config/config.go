@@ -3,43 +3,40 @@ package config
 import (
 	"os"
 	"strconv"
-	
-	"github.com/joho/godotenv"
+	"strings"
 )
 
 type Config struct {
 	TelegramToken string
-	AdminUserID   int64
-	WebhookURL    string
-	WebhookPort   string
+	AdminID       int64
+	HealthPort    string
 	EncryptionKey string
 }
 
 func Load() *Config {
-	// Load .env file - this will work even if .env doesn't exist
-	godotenv.Load()
-	
 	return &Config{
-		TelegramToken: os.Getenv("TELEGRAM_BOT_TOKEN"),
-		AdminUserID:   getEnvInt64("ADMIN_USER_ID", 304528450),
-		WebhookURL:    os.Getenv("WEBHOOK_URL"),
-		WebhookPort:   getEnv("PORT", "8443"),
-		EncryptionKey: getEnv("ENCRYPTION_KEY", "default-key-change-in-production"),
+		TelegramToken: getEnv("TELEGRAM_BOT_TOKEN", ""),
+		AdminID:       getEnvAsInt("ADMIN_USER_ID", 0),
+		HealthPort:    getEnv("HEALTH_PORT", "8080"),
+		EncryptionKey: getEnv("ENCRYPTION_KEY", ""),
 	}
 }
 
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
+func getEnv(key, defaultVal string) string {
+	if value, exists := os.LookupEnv(key); exists {
+		return strings.TrimSpace(value)
 	}
-	return defaultValue
+	return defaultVal
 }
 
-func getEnvInt64(key string, defaultValue int64) int64 {
-	if value := os.Getenv(key); value != "" {
-		if intVal, err := strconv.ParseInt(value, 10, 64); err == nil {
-			return intVal
-		}
+func getEnvAsInt(key string, defaultVal int64) int64 {
+	valStr := getEnv(key, "")
+	if valStr == "" {
+		return defaultVal
 	}
-	return defaultValue
+	val, err := strconv.ParseInt(valStr, 10, 64)
+	if err != nil {
+		return defaultVal
+	}
+	return val
 }
