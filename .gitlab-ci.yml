@@ -22,7 +22,9 @@ test:
 
 security-scan:
   stage: security-scan
-  image: aquasec/trivy:latest
+  image: 
+    name: aquasec/trivy:latest
+    entrypoint: [""]
   script:
     - trivy --version
     - trivy filesystem --exit-code 0 --no-progress .
@@ -66,7 +68,9 @@ docker-build:
 
 deploy-staging:
   stage: deploy
-  image: bitnami/kubectl:latest
+  image: 
+    name: bitnami/kubectl:latest
+    entrypoint: [""]
   script:
     - echo "🚀 Simulating deployment to staging..."
     - kubectl version --client
@@ -79,7 +83,9 @@ deploy-staging:
 
 deploy-production:
   stage: deploy
-  image: bitnami/kubectl:latest
+  image: 
+    name: bitnami/kubectl:latest
+    entrypoint: [""]
   script:
     - echo "🎯 Simulating deployment to production..."
     - kubectl version --client
