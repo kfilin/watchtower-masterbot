@@ -6,35 +6,37 @@ import (
 )
 
 func TestLoadConfig(t *testing.T) {
-	// Set test environment
+	// Set test environment variables
 	os.Setenv("TELEGRAM_BOT_TOKEN", "test-token")
 	os.Setenv("ADMIN_USER_ID", "12345")
 	os.Setenv("HEALTH_PORT", "8080")
 	
-	cfg, err := LoadConfig()
-	if err != nil {
-		t.Fatalf("Failed to load config: %v", err)
-	}
+	cfg := Load()  // ✅ CORRECTED: Load() not LoadConfig()
 	
-	if cfg.TelegramBotToken != "test-token" {
-		t.Errorf("Expected TelegramBotToken 'test-token', got '%s'", cfg.TelegramBotToken)
+	if cfg.TelegramToken != "test-token" {
+		t.Errorf("Expected TelegramToken 'test-token', got '%s'", cfg.TelegramToken)
 	}
-	
-	if cfg.AdminUserID != 12345 {
-		t.Errorf("Expected AdminUserID 12345, got '%d'", cfg.AdminUserID)
+	if cfg.AdminID != 12345 {
+		t.Errorf("Expected AdminID 12345, got '%d'", cfg.AdminID)
 	}
-	
 	if cfg.HealthPort != "8080" {
 		t.Errorf("Expected HealthPort '8080', got '%s'", cfg.HealthPort)
 	}
 }
 
 func TestLoadConfigMissingToken(t *testing.T) {
+	// Save original and unset
+	originalToken := os.Getenv("TELEGRAM_BOT_TOKEN")
 	os.Unsetenv("TELEGRAM_BOT_TOKEN")
-	_, err := LoadConfig()
-	if err == nil {
-		t.Error("Expected error for missing Telegram token, got none")
+	
+	cfg := Load()  // ✅ CORRECTED: Load() not LoadConfig()
+	
+	if cfg.TelegramToken != "" {
+		t.Error("Expected empty Telegram token when not set")
 	}
-	// Restore for other tests
-	os.Setenv("TELEGRAM_BOT_TOKEN", "test-token")
+	
+	// Restore
+	if originalToken != "" {
+		os.Setenv("TELEGRAM_BOT_TOKEN", originalToken)
+	}
 }
