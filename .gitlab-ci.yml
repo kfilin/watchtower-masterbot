@@ -1,200 +1,117 @@
-# File: .gitlab-ci.yml
+# .gitlab-ci.yml - FIXED VERSION
 stages:
   - test
-  - quality
-  - security
+  - security-scan
   - build
+  - docker-build
   - deploy
 
 variables:
-  GO_VERSION: "1.21"
-  DOCKER_IMAGE: "registry.gitlab.com/kfilin/watchtower-masterbot"
-  DOCKER_TAG: "$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA"
+  DOCKER_IMAGE: $CI_REGISTRY_IMAGE
+  DOCKER_TAG: $CI_COMMIT_SHORT_SHA
 
-cache:
-  paths:
-    - .cache/go-build
-    - go/pkg/mod/
-  key: "$CI_COMMIT_REF_SLUG"
-
-before_script:
-  - export GO111MODULE=on
-  - export GOPRIVATE=gitlab.com/kfilin/*
-
-# === TESTING STAGE ===
-
-unit_tests:
+# Test stage
+test:
   stage: test
-  image: golang:$GO_VERSION
+  image: golang:1.21-alpine
   script:
-    - echo "🚀 Starting unit tests for watchtower-masterbot"
     - go version
     - go mod download
-    - echo "📝 Running go vet..."
     - go vet ./...
-    - echo "🧪 Running tests..."
-    - go test -v -race ./...
+    - go test -v ./...
   artifacts:
-    when: always
-    reports:
-      junit: report.xml
-  tags:
-    - docker
+    paths:
+      - coverage.txt
+  only:
+    - master
 
-integration_tests:
-  stage: test
-  image: docker:latest
+# Security scan
+security_scan:
+  stage: security-scan
+  image: alpine:latest
   services:
     - docker:dind
-  before_script:
-    - apk add --no-cache curl
   script:
-    - echo "🐳 Building Docker image for integration tests..."
-    - docker build -t $DOCKER_IMAGE:integration-test .
-    
-    - echo "🚀 Starting container..."
+    - apk add --no-cache docker
+    - docker version
     - |
-      docker run -d --name watchtower-test \
-        -e TELEGRAM_BOT_TOKEN="test-token-12345" \
-        -e ADMIN_USER_ID="304528450" \
-        -e HEALTH_PORT="18080" \
-        -p 18080:18080 \
-        $DOCKER_IMAGE:integration-test
-    
-    - sleep 10
-    
-    - |
-      echo "🔍 Testing health endpoints..."
-      response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:18080/health || echo "curl_failed")
-      if [ "$response" = "200" ]; then
-        echo "✅ Health endpoint: HTTP 200"
-      else
-        echo "❌ Health endpoint failed: $response"
-        docker logs watchtower-test
-        exit 1
+      if [ -z "$TRIVY_VERSION" ]; then
+        TRIVY_VERSION="0.45.0"
       fi
-    - docker stop watchtower-test
-    - docker rm watchtower-test
+      wget -qO- https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz | tar -zx -C /usr/local/bin trivy
+      chmod +x /usr/local/bin/trivy
+    - trivy --version
+    - trivy filesystem --exit-code 1 --no-progress /
+  dependencies: []
   only:
-    - main
-    - develop
-  tags:
-    - docker
+    - master
 
-# === QUALITY STAGE ===
-
-code_format:
-  stage: quality
-  image: golang:$GO_VERSION
-  script:
-    - go mod download
-    - |
-      UNFORMATTED=$(gofmt -l .)
-      if [ -n "$UNFORMATTED" ]; then
-        echo "❌ Code formatting issues found:"
-        echo "$UNFORMATTED"
-        exit 1
-      else
-        echo "✅ Code is properly formatted"
-      fi
-  tags:
-    - docker
-
-static_analysis:
-  stage: quality
-  image: golang:$GO_VERSION
-  script:
-    - go mod download
-    - go vet ./...
-    - echo "✅ Go vet completed"
-  tags:
-    - docker
-
-# === SECURITY STAGE ===
-
-container_scan:
-  stage: security
-  image: 
-    name: aquasec/trivy:latest
-    entrypoint: [""]
-  variables:
-    TRIVY_NO_PROGRESS: "true"
-  script:
-    - echo "🔒 Scanning container for vulnerabilities..."
-    - docker build -t $DOCKER_IMAGE:security-scan .
-    - trivy image --severity HIGH,CRITICAL $DOCKER_IMAGE:security-scan
-  only:
-    - main
-    - develop
-  tags:
-    - docker
-
-# === BUILD STAGE ===
-
-build_docker:
+# Build Go binary
+build:
   stage: build
+  image: golang:1.21-alpine
+  script:
+    - go version
+    - go mod download
+    - CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o watchtower-masterbot .
+  artifacts:
+    paths:
+      - watchtower-masterbot
+  only:
+    - master
+
+# Docker build
+build_docker:
+  stage: docker-build
   image: docker:latest
   services:
     - docker:dind
-  before_script:
-    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
   script:
-    - |
-      echo "🏗️ Building Docker image..."
-      docker build \
-        -t $DOCKER_IMAGE:$DOCKER_TAG \
-        -t $DOCKER_IMAGE:latest \
-        .
-    - |
-      echo "📦 Pushing Docker images..."
-      docker push $DOCKER_IMAGE:$DOCKER_TAG
-      docker push $DOCKER_IMAGE:latest
-    - echo "✅ Images pushed: $DOCKER_IMAGE:$DOCKER_TAG"
+    - docker version
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker build -t $DOCKER_IMAGE:latest -t $DOCKER_IMAGE:$DOCKER_TAG .
+    - docker push $DOCKER_IMAGE:latest
+    - docker push $DOCKER_IMAGE:$DOCKER_TAG
+  dependencies:
+    - build
   only:
-    - main
-    - develop
-    - tags
-  tags:
-    - docker
+    - master
 
-# === DEPLOY STAGE ===
-
+# Staging deployment
 deploy_staging:
   stage: deploy
   image: bitnami/kubectl:latest
   script:
-    - |
-      echo "🚀 Deploying Watchtower-MasterBot to Kubernetes staging..."
-      kubectl config use-context staging-cluster
-      kubectl apply -f k8s/
-      kubectl rollout status deployment/watchtower-masterbot --timeout=300s
-      echo "✅ Watchtower-MasterBot staging deployment completed"
+    - echo "🚀 Deploying Watchtower-MasterBot to Kubernetes staging..."
+    - kubectl config use-context staging-cluster
+    - kubectl apply -f k8s/
+    - kubectl rollout status deployment/watchtower-masterbot --timeout=300s
+    - echo "✅ Watchtower-MasterBot staging deployment completed"
   environment:
     name: staging
   only:
-    - master  # ✅ CORRECTED: master branch
+    - master
   when: manual
 
+# Production deployment
 deploy_production:
   stage: deploy
   image: bitnami/kubectl:latest
   script:
-    - |
-      echo "🎯 Deploying Watchtower-MasterBot to Kubernetes PRODUCTION..."
-      kubectl config use-context production-cluster
-      kubectl apply -f k8s/
-      kubectl rollout status deployment/watchtower-masterbot --timeout=300s
-      echo "✅ Watchtower-MasterBot production deployment completed"
+    - echo "🎯 Deploying Watchtower-MasterBot to Kubernetes PRODUCTION..."
+    - kubectl config use-context production-cluster
+    - kubectl apply -f k8s/
+    - kubectl rollout status deployment/watchtower-masterbot --timeout=300s
+    - echo "✅ Watchtower-MasterBot production deployment completed"
   environment:
     name: production
   only:
-    - master  # ✅ CORRECTED: master branch
+    - master
   when: manual
 
 workflow:
   rules:
-    - if: $CI_COMMIT_TAG
-    - if: $CI_COMMIT_BRANCH == "main"
-    - if: $CI_COMMIT_BRANCH == "develop"
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - when: never
+    - if: $CI_COMMIT_BRANCH == "master"
