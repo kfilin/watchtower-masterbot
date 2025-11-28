@@ -161,37 +161,35 @@ build_docker:
 
 deploy_staging:
   stage: deploy
-  image: alpine:latest
+  image: bitnami/kubectl:latest
   script:
     - |
-      echo "🚀 Deploying to staging..."
-      echo "📦 Image: $DOCKER_IMAGE:$DOCKER_TAG"
-      echo "✅ Staging deployment completed (simulated)"
+      echo "🚀 Deploying Watchtower-MasterBot to Kubernetes staging..."
+      kubectl config use-context staging-cluster
+      kubectl apply -f k8s/
+      kubectl rollout status deployment/watchtower-masterbot --timeout=300s
+      echo "✅ Watchtower-MasterBot staging deployment completed"
   environment:
     name: staging
-    url: https://staging-watchtower.yourdomain.com
   only:
-    - develop
+    - master  # ✅ CORRECTED: master branch
   when: manual
-  tags:
-    - docker
 
 deploy_production:
   stage: deploy
-  image: alpine:latest
+  image: bitnami/kubectl:latest
   script:
     - |
-      echo "🎯 Deploying to PRODUCTION..."
-      echo "📦 Image: $DOCKER_IMAGE:$DOCKER_TAG"
-      echo "✅ Production deployment completed (simulated)"
+      echo "🎯 Deploying Watchtower-MasterBot to Kubernetes PRODUCTION..."
+      kubectl config use-context production-cluster
+      kubectl apply -f k8s/
+      kubectl rollout status deployment/watchtower-masterbot --timeout=300s
+      echo "✅ Watchtower-MasterBot production deployment completed"
   environment:
     name: production
-    url: https://watchtower.yourdomain.com
   only:
-    - main
+    - master  # ✅ CORRECTED: master branch
   when: manual
-  tags:
-    - docker
 
 workflow:
   rules:
