@@ -3,6 +3,8 @@ package main
 import (
 	"os"
 	"testing"
+
+	"github.com/kfilin/watchtower-masterbot/config"
 )
 
 func TestMain(m *testing.M) {
@@ -16,13 +18,10 @@ func TestMain(m *testing.M) {
 }
 
 func TestConfigLoad(t *testing.T) {
-	cfg, err := loadConfig()
-	if err != nil {
-		t.Fatalf("Failed to load config: %v", err)
-	}
+	cfg := config.Load()
 	
-	if cfg.TelegramBotToken != "test-token" {
-		t.Errorf("Expected token 'test-token', got '%s'", cfg.TelegramBotToken)
+	if cfg.TelegramToken != "test-token" {
+		t.Errorf("Expected token 'test-token', got '%s'", cfg.TelegramToken)
 	}
 	
 	if cfg.HealthPort != "18080" {
@@ -31,13 +30,15 @@ func TestConfigLoad(t *testing.T) {
 }
 
 func TestConfigValidation(t *testing.T) {
-	// Test missing token
+	// Test missing token - should not error but return empty
+	originalToken := os.Getenv("TELEGRAM_BOT_TOKEN")
 	os.Unsetenv("TELEGRAM_BOT_TOKEN")
-	_, err := loadConfig()
-	if err == nil {
-		t.Error("Expected error for missing token, got none")
+	
+	cfg := config.Load()
+	if cfg.TelegramToken != "" {
+		t.Error("Expected empty token when not set")
 	}
 	
 	// Restore
-	os.Setenv("TELEGRAM_BOT_TOKEN", "test-token")
+	os.Setenv("TELEGRAM_BOT_TOKEN", originalToken)
 }
