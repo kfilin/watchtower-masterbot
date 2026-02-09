@@ -1,4 +1,5 @@
 #!/bin/bash
+cd "$(dirname "$0")/.."
 
 echo "🎯 FINAL VERIFICATION"
 
@@ -21,7 +22,7 @@ else
 fi
 
 echo "3. Testing invalid token handling..."
-timeout 5s TELEGRAM_BOT_TOKEN="invalid" ADMIN_USER_ID="123" ./watchtower-masterbot &
+timeout 5s env TELEGRAM_BOT_TOKEN="invalid" ADMIN_USER_ID="123" ./watchtower-masterbot &
 sleep 2
 curl -s http://localhost:8080/health > /dev/null && echo "✅ Health server works in degraded mode" || echo "❌ Health server failed"
 

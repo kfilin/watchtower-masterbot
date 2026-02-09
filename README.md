@@ -8,6 +8,7 @@ A production-ready Telegram bot for managing multiple Watchtower instances with 
 ## 🎯 Current Status: **Production-Ready Foundation**
 
 ### What Works Today
+
 - **Multi-server management** with encrypted credential storage (AES-256)
 - **Real Watchtower API integration** (v1.7.1 HTTP API)
 - **Secure architecture** with memory-only token processing
@@ -24,11 +25,13 @@ A production-ready Telegram bot for managing multiple Watchtower instances with 
 ## 🚀 Quick Start
 
 ### Prerequisites
+
 - Go 1.21+
 - Telegram Bot Token from [@BotFather](https://t.me/botfather)
 - Watchtower instance with HTTP API enabled
 
 ### Installation
+
 ```bash
 # Clone the repository
 git clone https://github.com/kfilin/watchtower-masterbot
@@ -44,6 +47,7 @@ go run main.go
 ```
 
 ### Docker (Coming Soon)
+
 ```bash
 docker build -t watchtower-masterbot .
 docker run -e TELEGRAM_BOT_TOKEN="your_token" watchtower-masterbot
@@ -52,14 +56,16 @@ docker run -e TELEGRAM_BOT_TOKEN="your_token" watchtower-masterbot
 ## 📋 Key Commands
 
 ### Server Management
-```
+
+```text
 /addserver <name> <url> <token>  - Add new Watchtower instance
 /servers                         - List all configured servers  
 /server <name>                   - Switch active server context
 ```
 
 ### Watchtower Commands
-```
+
+```text
 /wt_update    - Trigger manual container updates
 /wt_status    - Check Watchtower instance status
 /wt_history   - View update timeline and results
@@ -70,6 +76,7 @@ docker run -e TELEGRAM_BOT_TOKEN="your_token" watchtower-masterbot
 ## 🔧 Configuration
 
 ### Environment Variables
+
 ```bash
 # Required
 TELEGRAM_BOT_TOKEN=your_bot_token_here
@@ -82,6 +89,7 @@ WEBHOOK_URL=your_webhook_url
 ```
 
 ### Adding Your First Server
+
 1. Start chat with your bot in Telegram
 2. Use `/addserver home https://your-watchtower-url your-token`
 3. Switch with `/server home`
@@ -97,7 +105,9 @@ WEBHOOK_URL=your_webhook_url
 
 ## 🏗️ Technical Architecture
 
-```
+Detailed in [docs/files.md](docs/files.md) and [docs/ARCH_DECISIONS.md](docs/ARCH_DECISIONS.md).
+
+```text
 watchtower-masterbot/
 ├── bot/
 │   ├── bot.go           # Telegram integration & command routing
@@ -115,6 +125,7 @@ watchtower-masterbot/
 ## 📚 Comprehensive Documentation
 
 Complete knowledge base organized in Obsidian with:
+
 - **Architectural decisions** and rationales
 - **Security implementation** deep dive  
 - **Technical challenge** solutions
@@ -124,6 +135,7 @@ Complete knowledge base organized in Obsidian with:
 ## 🚧 Development Status
 
 ### ✅ Phase 2 Complete
+
 - [x] Multi-server architecture with encrypted storage
 - [x] Real Watchtower API integration
 - [x] Comprehensive error handling and user guidance
@@ -131,6 +143,7 @@ Complete knowledge base organized in Obsidian with:
 - [x] Complete documentation foundation
 
 ### 🔄 Phase 3 Planned
+
 - [ ] Docker containerization and image building
 - [ ] Kubernetes deployment manifests
 - [ ] CI/CD pipeline implementation
@@ -139,11 +152,14 @@ Complete knowledge base organized in Obsidian with:
 
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+See [docs/DEVELOPER.md](docs/DEVELOPER.md) for detailed setup and contribution guidelines.
+
+1. Check the Backlog in [.agent/backlog.md](.agent/backlog.md).
+2. Fork the repository
+3. Create a feature branch (`git checkout -b feature/amazing-feature`)
+4. Commit your changes (`git commit -m 'Add amazing feature'`)
+5. Push to the branch (`git push origin feature/amazing-feature`)
+6. Open a Pull Request
 
 ## 📄 License
 
@@ -159,23 +175,23 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Ready for production deployment and enhanced features!** 🚀
 
-
 ## 🚀 Deployment
 
 ### Docker Deployment
+
 ```bash
 # Build from source
 docker build -t watchtower-masterbot .
 
 # Or use docker-compose
-docker-compose -f deployments/docker/docker-compose.yml up
+docker-compose -f deploy/docker/docker-compose.yml up
 
 Kubernetes Deployment
 bash
 
 # Apply Kubernetes manifests
-kubectl apply -f deployments/kubernetes/k8s/
+kubectl apply -f deploy/kubernetes/k8s/
 
 # Or use Helm
-helm install watchtower-masterbot deployments/kubernetes/helm/watchtower-masterbot/
+helm install watchtower-masterbot deploy/kubernetes/helm/watchtower-masterbot/
 

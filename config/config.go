@@ -11,6 +11,7 @@ type Config struct {
 	AdminID       int64
 	HealthPort    string
 	EncryptionKey string
+	WebAppURL     string
 }
 
 func Load() *Config {
@@ -19,6 +20,7 @@ func Load() *Config {
 		AdminID:       getEnvAsInt("ADMIN_USER_ID", 0),
 		HealthPort:    getEnv("HEALTH_PORT", "8080"),
 		EncryptionKey: getEnv("ENCRYPTION_KEY", ""),
+		WebAppURL:     getEnv("WEBAPP_URL", ""),
 	}
 }
 

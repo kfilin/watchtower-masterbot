@@ -11,7 +11,7 @@ import (
 func TestHealthHandler(t *testing.T) {
 	// Set bot status to healthy first
 	SetBotStatus("running")
-	
+
 	req, err := http.NewRequest("GET", "/health", nil)
 	if err != nil {
 		t.Fatal(err)
@@ -37,7 +37,7 @@ func TestHealthHandler(t *testing.T) {
 func TestHealthHandlerDegraded(t *testing.T) {
 	// Set bot status to failed to test degraded status
 	SetBotStatus("failed")
-	
+
 	req, err := http.NewRequest("GET", "/health", nil)
 	if err != nil {
 		t.Fatal(err)
@@ -103,7 +103,7 @@ func TestLiveHandler(t *testing.T) {
 func TestSetBotStatus(t *testing.T) {
 	// Test that SetBotStatus actually changes the status
 	SetBotStatus("testing")
-	
+
 	req, err := http.NewRequest("GET", "/health", nil)
 	if err != nil {
 		t.Fatal(err)
@@ -121,14 +121,14 @@ func TestSetBotStatus(t *testing.T) {
 
 func TestHealthServerLifecycle(t *testing.T) {
 	// Test that we can start and shutdown the server
-	err := StartServer("18081") // Use a different port to avoid conflicts
+	err := StartServer("18081", nil) // Use a different port to avoid conflicts
 	if err != nil {
 		t.Errorf("Failed to start health server: %v", err)
 	}
-	
+
 	// Give it a moment to start
 	time.Sleep(200 * time.Millisecond)
-	
+
 	// Test that the server is responding
 	resp, err := http.Get("http://localhost:18081/health")
 	if err != nil {
@@ -139,7 +139,7 @@ func TestHealthServerLifecycle(t *testing.T) {
 			t.Errorf("Expected status 200, got %v", resp.StatusCode)
 		}
 	}
-	
+
 	// Shutdown the server
 	Shutdown()
 }

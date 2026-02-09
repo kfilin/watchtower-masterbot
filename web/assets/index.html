@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>WATCHTOWER TERMINAL v1.1</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+        :root {
+            --term-color: #ffb000;
+            /* Amber */
+            --term-glow: #ffb00080;
+            --bg-color: #111;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--term-color);
+            font-family: 'VT323', monospace;
+            margin: 0;
+            padding: 15px;
+            height: 100vh;
+            overflow: hidden;
+            text-shadow: 0 0 2px var(--term-glow);
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* CRT Effects */
+        .scanlines {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom,
+                    rgba(255, 255, 255, 0),
+                    rgba(255, 255, 255, 0) 50%,
+                    rgba(0, 0, 0, 0.1) 50%,
+                    rgba(0, 0, 0, 0.1));
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .crt-flicker {
+            animation: flicker 0.15s infinite;
+        }
+
+        @keyframes flicker {
+            0% {
+                opacity: 0.98;
+            }
+
+            50% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 0.99;
+            }
+        }
+
+        #terminal-output {
+            flex-grow: 1;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            font-size: 1.1rem;
+            padding-bottom: 20px;
+            scrollbar-width: none;
+        }
+
+        #terminal-output::-webkit-scrollbar {
+            display: none;
+        }
+
+        .input-line {
+            display: flex;
+            align-items: center;
+            font-size: 1.1rem;
+            border-top: 1px dashed var(--term-color);
+            padding-top: 10px;
+            margin-bottom: 10px;
+        }
+
+        .prompt {
+            margin-right: 8px;
+            flex-shrink: 0;
+        }
+
+        input {
+            background: transparent;
+            border: none;
+            color: var(--term-color);
+            font-family: 'VT323', monospace;
+            font-size: 1.1rem;
+            flex-grow: 1;
+            outline: none;
+            text-shadow: 0 0 2px var(--term-glow);
+            caret-color: var(--term-color);
+            text-transform: uppercase;
+        }
+
+        .blink {
+            animation: blink 1s step-end infinite;
+        }
+
+        @keyframes blink {
+            50% {
+                opacity: 0;
+            }
+        }
+
+        .success {
+            color: #55ff55;
+            text-shadow: 0 0 2px #55ff55;
+        }
+
+        .error {
+            color: #ff5555;
+            text-shadow: 0 0 2px #ff5555;
+        }
+
+        .cmd-echo {
+            color: #fff;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+
+<body class="crt-flicker">
+    <div class="scanlines"></div>
+
+    <div id="terminal-output"></div>
+
+    <div class="input-line">
+        <span class="prompt">ADMIN@WT:~$</span>
+        <input type="text" id="cmd-input" autofocus autocomplete="off" spellcheck="false">
+    </div>
+
+    <script>
+        const output = document.getElementById('terminal-output');
+        const input = document.getElementById('cmd-input');
+        const tg = window.Telegram.WebApp;
+
+        tg.expand();
+        tg.ready();
+
+        const user = tg.initDataUnsafe?.user || { id: 0, first_name: "GUEST" };
+        const initData = tg.initData;
+
+        // Boot Sequence
+        const bootText = [
+            "WATCHTOWER KERNEL v5.2.2-RETRO",
+            "USER AUTH: " + user.first_name.toUpperCase(),
+            "ESTABLISHING SECURE TUNNEL...",
+            "TERMINAL READY.",
+            "TYPE 'HELP' FOR LIST OF COMMANDS.",
+            "--------------------------------"
+        ];
+
+        let lineIndex = 0;
+        function typeLine() {
+            if (lineIndex < bootText.length) {
+                printLine(bootText[lineIndex]);
+                lineIndex++;
+                setTimeout(typeLine, 100);
+            }
+        }
+
+        setTimeout(typeLine, 300);
+
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const cmd = input.value.trim().toUpperCase();
+                if (cmd) {
+                    printLine(`ADMIN@WT:~$ ${cmd}`, "cmd-echo");
+                    processCommand(cmd);
+                }
+                input.value = '';
+            }
+        });
+
+        function printLine(text, className = '') {
+            const div = document.createElement('div');
+            div.textContent = text;
+            if (className) div.classList.add(className);
+            output.appendChild(div);
+            output.scrollTop = output.scrollHeight;
+        }
+
+        async function apiCall(endpoint) {
+            try {
+                const response = await fetch(endpoint, {
+                    headers: { 'X-TG-INIT-DATA': initData }
+                });
+                return await response.json();
+            } catch (e) {
+                return { error: "CONNECTION FAILED" };
+            }
+        }
+
+        async function processCommand(cmd) {
+            const parts = cmd.split(' ');
+            const baseCmd = parts[0];
+
+            switch (baseCmd) {
+                case 'HELP':
+                    printLine("COMMANDS:");
+                    printLine(" SERVERS  - LIST MANAGED NODES");
+                    printLine(" UPDATE   - TRIGGER ACTIVE NODE");
+                    printLine(" STATUS   - SYSTEM TELEMETRY");
+                    printLine(" CLEAR    - CLEAR SCREEN");
+                    printLine(" EXIT     - CLOSE TERMINAL");
+                    break;
+                case 'SERVERS':
+                    printLine("FETCHING CLUSTER DATA...");
+                    const data = await apiCall('/api/servers');
+                    if (data.error) {
+                        printLine("ERR: " + data.error, "error");
+                    } else if (data.servers && data.servers.length > 0) {
+                        data.servers.forEach(s => {
+                            const status = s.is_active ? "[ACTIVE]" : "[READY]";
+                            printLine(`> ${s.nickname.padEnd(12)} ${status}`, s.is_active ? "success" : "");
+                        });
+                    } else {
+                        printLine("NO SERVERS CONFIGURED.");
+                    }
+                    break;
+                case 'UPDATE':
+                    printLine("INITIATING REMOTE TRIGGER...", "blink");
+                    const res = await apiCall('/api/update');
+                    if (res.error) {
+                        printLine("ERR: " + res.error, "error");
+                    } else {
+                        printLine("UPDATE SEQUENCE COMMENCED.", "success");
+                        if (res.message) printLine(res.message);
+                    }
+                    break;
+                case 'STATUS':
+                    printLine("LOAD: NOMINAL");
+                    printLine("STORAGE: 14% USED");
+                    printLine("SECURITY: AES-256 ACTIVE");
+                    break;
+                case 'CLEAR':
+                    output.innerHTML = '';
+                    break;
+                case 'EXIT':
+                    tg.close();
+                    break;
+                default:
+                    printLine(`UNKNOWN COMMAND: ${baseCmd}`, "error");
+            }
+        }
+
+        document.body.addEventListener('click', () => input.focus());
+    </script>
+</body>
+
+</html>

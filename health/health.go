@@ -18,11 +18,11 @@ type HealthStatus struct {
 }
 
 var (
-	startTime    time.Time
-	server       *http.Server
-	serverWg     sync.WaitGroup
-	botStatus    string = "initializing"
-	healthMutex  sync.RWMutex
+	startTime   time.Time
+	server      *http.Server
+	serverWg    sync.WaitGroup
+	botStatus   string = "initializing"
+	healthMutex sync.RWMutex
 )
 
 func init() {
@@ -30,15 +30,19 @@ func init() {
 }
 
 // StartServer starts the health check server on the specified port
-func StartServer(port string) error {
+func StartServer(port string, registerExtra func(*http.ServeMux)) error {
 	if port == "" {
 		port = "8080" // Default port
 	}
-	
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", healthHandler)
 	mux.HandleFunc("/ready", readyHandler)
 	mux.HandleFunc("/live", liveHandler)
+
+	if registerExtra != nil {
+		registerExtra(mux)
+	}
 
 	server = &http.Server{
 		Addr:    ":" + port,
@@ -46,7 +50,7 @@ func StartServer(port string) error {
 	}
 
 	log.Printf("🏥 Health server starting on port %s", port)
-	
+
 	// Start server in background
 	serverWg.Add(1)
 	go func() {
@@ -55,7 +59,7 @@ func StartServer(port string) error {
 			log.Printf("❌ Health server error: %v", err)
 		}
 	}()
-	
+
 	// Give the server a moment to start
 	time.Sleep(100 * time.Millisecond)
 	return nil

@@ -3,8 +3,8 @@ version: '3.8'
 services:
   watchtower-masterbot:
     build: 
-      context: ..
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
     image: watchtower-master-bot:latest
     container_name: watchtower-master-bot
     hostname: watchtower-masterbot
@@ -13,6 +13,7 @@ services:
     restart: unless-stopped
     networks:
       - watchtower-net
+      - caddy-test-net
     volumes:
       - bot_data:/app/data
     labels:
@@ -41,6 +42,8 @@ networks:
   watchtower-net:
     driver: bridge
     name: watchtower-network
+  caddy-test-net:
+    external: true
 
 volumes:
   bot_data:

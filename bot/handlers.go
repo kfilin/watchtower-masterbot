@@ -2,6 +2,7 @@ package bot
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -93,10 +94,10 @@ func (wb *WatchtowerBot) handleListServers(message *tgbotapi.Message) {
 		}
 	}
 
-        response.WriteString("\n\n🚀 *Quick Actions:*\n")
-        response.WriteString("• Use `/server <name>` to switch active server\n")
-        response.WriteString("• Use `/wt_update` to trigger container updates\n")
-        response.WriteString("• Use `/add_server` to add more servers")
+	response.WriteString("\n\n🚀 *Quick Actions:*\n")
+	response.WriteString("• Use `/server <name>` to switch active server\n")
+	response.WriteString("• Use `/wt_update` to trigger container updates\n")
+	response.WriteString("• Use `/add_server` to add more servers")
 
 	wb.sendMessage(message.Chat.ID, response.String())
 }
@@ -213,4 +214,29 @@ func (wb *WatchtowerBot) handleUpdate(message *tgbotapi.Message) {
 	response.WriteString("\n🔍 *Use `/servers` to manage your servers*")
 
 	wb.sendMessage(message.Chat.ID, response.String())
+}
+
+func (wb *WatchtowerBot) handleTerminal(message *tgbotapi.Message) {
+	if wb.webAppURL == "" {
+		wb.sendMessage(message.Chat.ID, "❌ *Retro Terminal* is not configured.\n\n"+
+			"Please set `WEBAPP_URL` in your `.env` file.\n\n"+
+			"💡 *Note:* This must be a public HTTPS URL pointing to this bot's port (default :8080) at the `/terminal` path.\n\n"+
+			"Example: `WEBAPP_URL=https://your-tunnel.ngrok-free.app/terminal`")
+		return
+	}
+
+	msg := tgbotapi.NewMessage(message.Chat.ID, "📟 *ACCESSING MASTER CONTROL...*\n\nWelcome to the specialized retro terminal interface.")
+	msg.ParseMode = "Markdown"
+
+	// Create Inline Keyboard with WebApp button
+	markup := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonWebApp("🔓 Open Terminal", tgbotapi.WebAppInfo{URL: wb.webAppURL}),
+		),
+	)
+	msg.ReplyMarkup = markup
+
+	if _, err := wb.API.Send(msg); err != nil {
+		log.Printf("❌ Failed to send terminal message: %v", err)
+	}
 }

@@ -1,0 +1,7 @@
+2026/02/09 23:32:58 🏥 Starting Health & Web Server on port 8080...
+2026/02/09 23:32:58 ⚡ Retro Terminal TWA registered at /terminal
+2026/02/09 23:32:58 🏥 Health server starting on port 8080
+2026/02/09 23:32:58 ✅ Telegram bot started successfully! Health endpoints available at: http://localhost:8080/health
+2026/02/09 23:32:58 🤖 Authorized on account WatchtowerMasterBot
+2026/02/09 23:36:43 📥 Received message: '/terminal' from YourLatestTrick
+signal: killed
