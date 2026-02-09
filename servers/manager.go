@@ -71,7 +71,7 @@ func (sm *ServerManager) AddServer(userID int64, nickname, watchtowerURL, token 
 	}
 
 	// Auto-save
-	if err := sm.Save(); err != nil {
+	if err := sm.saveToFile(); err != nil {
 		return err
 	}
 
@@ -122,7 +122,7 @@ func (sm *ServerManager) SwitchServer(userID int64, nickname string) error {
 	user.CurrentServer = nickname
 
 	// Auto-save
-	return sm.Save()
+	return sm.saveToFile()
 }
 
 func (sm *ServerManager) ListServers(userID int64) ([]string, error) {
@@ -209,10 +209,15 @@ func (sm *ServerManager) decryptToken(cryptoText string) (string, error) {
 // Persistence
 const dataFile = "/app/data/servers.json"
 
+// Save persists the current state to disk (Thread-Safe)
 func (sm *ServerManager) Save() error {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
+	return sm.saveToFile()
+}
 
+// saveToFile writes data to disk without locking (Caller must hold lock)
+func (sm *ServerManager) saveToFile() error {
 	data, err := json.MarshalIndent(sm.users, "", "  ")
 	if err != nil {
 		return err
