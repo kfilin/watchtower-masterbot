@@ -31,6 +31,10 @@ services:
       
       # Health check
       - "com.centurylinklabs.watchtower.health-check=true"
+
+      # Caddy Reverse Proxy Labels
+      - "caddy=watchtower.kfilin.icu"
+      - "caddy.reverse_proxy=:8080"
       
     logging:
       driver: "json-file"
