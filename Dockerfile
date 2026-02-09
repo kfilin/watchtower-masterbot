@@ -11,10 +11,13 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o watchtower-master
 # Final minimal image
 FROM alpine:latest
 RUN apk --no-cache add ca-certificates tzdata
-WORKDIR /root/
+WORKDIR /app
 
-# Create non-root user for security
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+# Create non-root user and data directory
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup && \
+    mkdir -p /app/data && \
+    chown -R appuser:appgroup /app
+
 USER appuser
 
 COPY --from=builder /app/watchtower-masterbot .
