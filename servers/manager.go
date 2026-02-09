@@ -5,11 +5,13 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"io"
+	"os"
 	"sync"
 	"time"
-	
+
 	"github.com/kfilin/watchtower-masterbot/internal/api"
 )
 
@@ -21,10 +23,16 @@ type ServerManager struct {
 
 func NewManager(encryptionKey string) *ServerManager {
 	key := deriveKey(encryptionKey)
-	return &ServerManager{
+	sm := &ServerManager{
 		users: make(map[int64]*User),
 		key:   key,
 	}
+
+	// Attempt to load existing data
+	// Ignoring error for now as it just starts empty
+	_ = sm.Load()
+
+	return sm
 }
 
 func (sm *ServerManager) AddServer(userID int64, nickname, watchtowerURL, token string) error {
@@ -60,6 +68,11 @@ func (sm *ServerManager) AddServer(userID int64, nickname, watchtowerURL, token 
 
 	if user.CurrentServer == "" {
 		user.CurrentServer = nickname
+	}
+
+	// Auto-save
+	if err := sm.Save(); err != nil {
+		return err
 	}
 
 	return nil
@@ -107,7 +120,9 @@ func (sm *ServerManager) SwitchServer(userID int64, nickname string) error {
 	}
 
 	user.CurrentServer = nickname
-	return nil
+
+	// Auto-save
+	return sm.Save()
 }
 
 func (sm *ServerManager) ListServers(userID int64) ([]string, error) {
@@ -133,7 +148,7 @@ func (sm *ServerManager) GetAPIClient(userID int64) (*api.WatchtowerClient, erro
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return api.NewWatchtowerClient(server.WatchtowerURL, server.Token), nil
 }
 
@@ -155,7 +170,7 @@ func (sm *ServerManager) encryptToken(plaintext string) (string, error) {
 	plaintextBytes := []byte(plaintext)
 	encryptedData := make([]byte, len(plaintextBytes))
 	stream.XORKeyStream(encryptedData, plaintextBytes)
-	
+
 	// Combine IV and encrypted data
 	copy(ciphertext[aes.BlockSize:], encryptedData)
 
@@ -187,6 +202,43 @@ func (sm *ServerManager) decryptToken(cryptoText string) (string, error) {
 	stream.XORKeyStream(plaintext, encryptedData)
 
 	return string(plaintext), nil
+}
+
+// File: servers/manager.go (appending to existing file content, replacing end lines)
+
+// Persistence
+const dataFile = "/app/data/servers.json"
+
+func (sm *ServerManager) Save() error {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+
+	data, err := json.MarshalIndent(sm.users, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	// Ensure directory exists
+	if err := os.MkdirAll("/app/data", 0755); err != nil {
+		return err
+	}
+
+	return os.WriteFile(dataFile, data, 0644)
+}
+
+func (sm *ServerManager) Load() error {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	data, err := os.ReadFile(dataFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil // No data yet, start fresh
+		}
+		return err
+	}
+
+	return json.Unmarshal(data, &sm.users)
 }
 
 func deriveKey(passphrase string) []byte {
