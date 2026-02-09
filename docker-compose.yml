@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  watchtower-masterbot:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    image: watchtower-master-bot:latest
+    container_name: watchtower-master-bot
+    hostname: watchtower-masterbot
+    env_file:
+      - .env
+    restart: unless-stopped
+    networks:
+      - watchtower-net
+      - caddy-test-net
+    volumes:
+      - bot_data:/app/data
+    labels:
+      # Descriptive labels
+      - "description=Multi-server Watchtower management bot"
+      - "maintainer=your-name"
+      - "version=1.0.0"
+      
+      # Watchtower auto-update labels
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.scope=watchtower-masterbot"
+      - "com.centurylinklabs.watchtower.monitor-only=false"
+      - "com.centurylinklabs.watchtower.lifecycle.hooks=true"
+      - "com.centurylinklabs.watchtower.interval=300"
+      
+      # Health check
+      - "com.centurylinklabs.watchtower.health-check=true"
+      
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  watchtower-net:
+    driver: bridge
+    name: watchtower-network
+  caddy-test-net:
+    external: true
+
+volumes:
+  bot_data:
+    name: watchtower-masterbot-data
