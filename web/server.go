@@ -34,6 +34,7 @@ func NewServer(mgr *servers.ServerManager, adminID int64, botToken string) *WebS
 
 func (s *WebServer) RegisterHandlers(mux *http.ServeMux) {
 	mux.HandleFunc("/terminal", s.handleTerminal)
+	mux.HandleFunc("/terminal/", s.handleTerminal)
 	mux.HandleFunc("/api/servers", s.handleAPIServers)
 	mux.HandleFunc("/api/update", s.handleAPIUpdate)
 }

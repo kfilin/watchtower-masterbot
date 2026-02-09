@@ -40,13 +40,24 @@ func StartServer(port string, registerExtra func(*http.ServeMux)) error {
 	mux.HandleFunc("/ready", readyHandler)
 	mux.HandleFunc("/live", liveHandler)
 
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("⚠️ 404 Unhandled: %s", r.URL.Path)
+		http.NotFound(w, r)
+	})
+
 	if registerExtra != nil {
 		registerExtra(mux)
 	}
 
+	// Logging middleware
+	loggingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("🔍 HTTP Request: %s %s from %s", r.Method, r.URL.Path, r.RemoteAddr)
+		mux.ServeHTTP(w, r)
+	})
+
 	server = &http.Server{
 		Addr:    ":" + port,
-		Handler: mux,
+		Handler: loggingHandler,
 	}
 
 	log.Printf("🏥 Health server starting on port %s", port)
